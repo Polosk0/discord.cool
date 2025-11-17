@@ -159,6 +159,10 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
   }
 
   if (customId.startsWith('attack_config_')) {
+    if (interaction.replied || interaction.deferred) {
+      return;
+    }
+
     const method = customId.replace('attack_config_', '') as any;
     const target = interaction.fields.getTextInputValue('target')?.trim();
     const duration = parseInt(interaction.fields.getTextInputValue('duration') || '60', 10);
@@ -166,30 +170,47 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
     const port = interaction.fields.getTextInputValue('port') ? parseInt(interaction.fields.getTextInputValue('port') || '80', 10) : undefined;
 
     if (!target || (!isValidUrl(target) && !isValidIp(target) && !isValidDomain(target))) {
-      await interaction.reply({
-        content: '❌ Invalid target. Please provide a valid URL, IP address, or domain.',
-        flags: MessageFlags.Ephemeral,
-      });
+      try {
+        await interaction.reply({
+          content: '❌ Invalid target. Please provide a valid URL, IP address, or domain.',
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch (error) {
+        logger.error('Failed to reply to attack_config modal', error as Error);
+      }
       return;
     }
 
     if (!isValidDuration(duration)) {
-      await interaction.reply({
-        content: '❌ Invalid duration. Maximum allowed: 300 seconds.',
-        flags: MessageFlags.Ephemeral,
-      });
+      try {
+        await interaction.reply({
+          content: '❌ Invalid duration. Maximum allowed: 300 seconds.',
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch (error) {
+        logger.error('Failed to reply to attack_config modal', error as Error);
+      }
       return;
     }
 
     if (!isValidThreads(threads)) {
-      await interaction.reply({
-        content: '❌ Invalid thread count. Maximum allowed: 100.',
-        flags: MessageFlags.Ephemeral,
-      });
+      try {
+        await interaction.reply({
+          content: '❌ Invalid thread count. Maximum allowed: 100.',
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch (error) {
+        logger.error('Failed to reply to attack_config modal', error as Error);
+      }
       return;
     }
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    } catch (error) {
+      logger.error('Failed to defer reply to attack_config modal', error as Error);
+      return;
+    }
 
     try {
       const config = {
