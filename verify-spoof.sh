@@ -145,8 +145,11 @@ fi
 
 if [ -f "/etc/proxychains.conf" ]; then
     echo "✓ Configuration ProxyChains: OK"
-    if grep -q "127.0.0.1:9051" /etc/proxychains.conf 2>/dev/null; then
-        echo "  → Tor configuré (port 9051)"
+    if grep -q "127.0.0.1.*9050" /etc/proxychains.conf 2>/dev/null; then
+        echo "  → Tor configuré (port SOCKS 9050)"
+    elif grep -q "127.0.0.1.*9051" /etc/proxychains.conf 2>/dev/null; then
+        echo "  ⚠ Tor configuré sur le port 9051 (ControlPort, devrait être 9050)"
+        ((WARNINGS++))
     fi
 else
     echo "⚠ Configuration ProxyChains: manquante (utilisera la config par défaut)"

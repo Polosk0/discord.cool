@@ -51,7 +51,7 @@ tcp_connect_time_out 8000
 # add proxy here ...
 # meanwile
 # defaults set to "tor"
-socks5  127.0.0.1 9051
+socks5  127.0.0.1 9050
 EOF
 
 # Installation de Go (version 1.22 pour compatibilité avec Gost)
