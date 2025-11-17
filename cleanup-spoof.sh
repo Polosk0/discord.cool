@@ -7,6 +7,11 @@ echo ""
 
 # Arrêt des processus
 echo "[1/8] Arrêt des processus..."
+if command -v pm2 &> /dev/null; then
+    pm2 delete all 2>/dev/null || true
+    pm2 kill 2>/dev/null || true
+    echo "✓ Services PM2 arrêtés"
+fi
 pkill -f "gost -c /etc/gost/gost.conf" 2>/dev/null || true
 systemctl stop tor 2>/dev/null || true
 echo "✓ Processus arrêtés"
@@ -44,6 +49,7 @@ rm -f /usr/lib/libproxychains.so.4 2>/dev/null || true
 rm -f /usr/local/bin/start_attacks.sh 2>/dev/null || true
 rm -f /usr/local/bin/slowloris 2>/dev/null || true
 rm -f /usr/local/bin/cloudflarespeedtest 2>/dev/null || true
+rm -f /tmp/tor-check.sh 2>/dev/null || true
 echo "✓ Binaires et wrappers supprimés"
 echo ""
 

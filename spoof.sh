@@ -12,7 +12,7 @@ echo ""
 apt update && apt upgrade -y
 
 # Installation des dépendances
-apt install -y curl wget git python3 python3-pip python3-venv build-essential libssl-dev libffi-dev python3-dev openjdk-11-jdk
+apt install -y curl wget git python3 python3-pip python3-venv build-essential libssl-dev libffi-dev python3-dev openjdk-11-jdk nodejs npm
 
 # Installation de Tor pour le spoofing
 apt install -y tor
@@ -257,6 +257,20 @@ chmod +x /usr/local/bin/cloudflarespeedtest
 
 # Rendre le script exécutable
 chmod +x /usr/local/bin/start_attacks.sh
+
+# Installation et démarrage avec PM2
+echo "Installation de PM2 et démarrage des services..."
+if command -v npm &> /dev/null; then
+    npm install -g pm2 2>/dev/null || true
+    chmod +x start-spoof-services.sh
+    ./start-spoof-services.sh
+else
+    echo "⚠ npm non disponible, démarrage manuel de Gost..."
+    if command -v gost &> /dev/null && [ -f "/etc/gost/gost.conf" ]; then
+        nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &
+        echo "✓ Gost démarré manuellement"
+    fi
+fi
 
 echo ""
 echo "=== Installation terminée avec succès ==="
