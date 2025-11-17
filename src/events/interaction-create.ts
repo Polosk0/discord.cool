@@ -37,8 +37,16 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
   if (customId.startsWith('license_activate_')) {
     const licenseKey = interaction.fields.getTextInputValue('license_key')?.trim().toUpperCase();
 
+    if (!licenseKey) {
+      await interaction.reply({
+        content: '❌ Please enter a license key.',
+        ephemeral: true,
+      });
+      return;
+    }
+
     const validation = licenseService.validateLicenseKey(licenseKey);
-    if (!validation.valid) {
+    if (!validation.valid || !validation.license) {
       await interaction.reply({
         content: '❌ Invalid or expired license key.',
         ephemeral: true,
@@ -46,7 +54,9 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
       return;
     }
 
-    if (validation.userId && validation.userId !== interaction.user.id) {
+    const license = validation.license;
+
+    if (license.userId && license.userId !== interaction.user.id) {
       await interaction.reply({
         content: '❌ This license key belongs to another user.',
         ephemeral: true,
@@ -54,23 +64,54 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
       return;
     }
 
-    const license = licenseService.getLicense(interaction.user.id);
-    if (license && license.licenseKey !== licenseKey) {
-      await interaction.reply({
-        content: '❌ You already have an active license. Contact an admin to change it.',
-        ephemeral: true,
-      });
+    const existingLicense = licenseService.getLicense(interaction.user.id);
+    if (existingLicense) {
+      if (existingLicense.licenseKey === licenseKey) {
+        const embed = new EmbedBuilder()
+          .setTitle('✅ License Already Active')
+          .setColor(0x00ff00)
+          .setDescription('This license is already activated on your account.')
+          .setTimestamp();
+
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+        return;
+      } else {
+        await interaction.reply({
+          content: '❌ You already have an active license. Contact an admin to change it.',
+          ephemeral: true,
+        });
+        return;
+      }
+    }
+
+    if (license.userId === interaction.user.id) {
+      const embed = new EmbedBuilder()
+        .setTitle('✅ License Activated')
+        .setColor(0x00ff00)
+        .setDescription('Your license has been activated successfully!')
+        .addFields(
+          { name: 'License Key', value: `\`${licenseKey}\``, inline: false },
+          { name: 'Permissions', value: license.permissions.join(', '), inline: true },
+          { name: 'Expires', value: license.expiresAt ? new Date(license.expiresAt).toLocaleDateString() : 'Never', inline: true }
+        )
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed], ephemeral: true });
       return;
     }
 
-    if (!license) {
-      licenseService.createLicense(interaction.user.id, null, ['bot', 'attack']);
-    }
+    licenseService.revokeLicense(license.userId);
+    const expiresInDays = license.expiresAt ? Math.floor((license.expiresAt - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+    licenseService.createLicense(interaction.user.id, expiresInDays, license.permissions);
 
     const embed = new EmbedBuilder()
       .setTitle('✅ License Activated')
       .setColor(0x00ff00)
       .setDescription('Your license has been activated successfully!')
+      .addFields(
+        { name: 'License Key', value: `\`${licenseKey}\``, inline: false },
+        { name: 'Permissions', value: (license?.permissions || ['bot', 'attack']).join(', '), inline: true }
+      )
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
