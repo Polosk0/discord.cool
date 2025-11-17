@@ -146,12 +146,12 @@ if [ $? -ne 0 ]; then
 fi
 print_success "Dependencies installed"
 
-# Build project if needed
+# Build project if needed (optional, we use tsx directly)
 if [ -f "package.json" ] && grep -q "\"build\"" package.json; then
-    print_info "Building project..."
-    pnpm build
+    print_info "Building project (optional, using tsx for runtime)..."
+    pnpm build 2>&1 | head -20
     if [ $? -ne 0 ]; then
-        print_warning "Build failed, but continuing..."
+        print_warning "Build failed, but continuing (using tsx directly)..."
     else
         print_success "Project built successfully"
     fi
