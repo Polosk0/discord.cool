@@ -12,7 +12,7 @@ echo ""
 apt update && apt upgrade -y
 
 # Installation des dépendances
-apt install -y curl wget git python3 python3-pip python3-venv build-essential libssl-dev libffi-dev python3-dev openjdk-11-jdk nodejs npm
+apt install -y curl wget git python3 python3-pip python3-venv build-essential libssl-dev libffi-dev python3-dev openjdk-11-jdk nodejs
 
 # Installation de Tor pour le spoofing
 apt install -y tor
@@ -260,12 +260,30 @@ chmod +x /usr/local/bin/start_attacks.sh
 
 # Installation et démarrage avec PM2
 echo "Installation de PM2 et démarrage des services..."
-if command -v npm &> /dev/null; then
-    npm install -g pm2 2>/dev/null || true
-    chmod +x start-spoof-services.sh
-    ./start-spoof-services.sh
+if command -v node &> /dev/null; then
+    # Vérifier si npm est disponible (inclus avec nodejs)
+    if ! command -v npm &> /dev/null; then
+        echo "⚠ npm non trouvé, installation via corepack..."
+        corepack enable 2>/dev/null || true
+    fi
+    if command -v npm &> /dev/null; then
+        echo "Installation de PM2..."
+        npm install -g pm2 2>/dev/null || {
+            echo "⚠ Échec installation PM2 via npm, utilisation de npx..."
+            # Utiliser npx comme fallback
+            npx -y pm2 --version > /dev/null 2>&1 || echo "⚠ PM2 non disponible"
+        }
+        chmod +x start-spoof-services.sh
+        ./start-spoof-services.sh
+    else
+        echo "⚠ npm non disponible, démarrage manuel de Gost..."
+        if command -v gost &> /dev/null && [ -f "/etc/gost/gost.conf" ]; then
+            nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &
+            echo "✓ Gost démarré manuellement"
+        fi
+    fi
 else
-    echo "⚠ npm non disponible, démarrage manuel de Gost..."
+    echo "⚠ nodejs non disponible, démarrage manuel de Gost..."
     if command -v gost &> /dev/null && [ -f "/etc/gost/gost.conf" ]; then
         nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &
         echo "✓ Gost démarré manuellement"

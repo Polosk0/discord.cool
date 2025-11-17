@@ -8,8 +8,16 @@ echo ""
 # Vérifier que PM2 est installé
 if ! command -v pm2 &> /dev/null; then
     echo "Installation de PM2..."
-    npm install -g pm2
-    echo "✓ PM2 installé"
+    if command -v npm &> /dev/null; then
+        npm install -g pm2
+        echo "✓ PM2 installé via npm"
+    elif command -v npx &> /dev/null; then
+        echo "⚠ Utilisation de npx pour PM2 (installation temporaire)"
+        echo "  → Pour une installation permanente, installez npm"
+    else
+        echo "✗ npm et npx non disponibles, impossible d'installer PM2"
+        exit 1
+    fi
 fi
 
 # Arrêter les services existants s'ils tournent
