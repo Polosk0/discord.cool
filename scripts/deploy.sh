@@ -172,8 +172,8 @@ fi
 print_header "Deployment Complete"
 print_success "Bot is ready to start"
 
-# Make sure start.sh is executable
-chmod +x start.sh 2>/dev/null || true
+# Make sure start scripts are executable
+chmod +x start.sh start.js 2>/dev/null || true
 
 # Restart with PM2 if available, otherwise use start script
 if command -v pm2 &> /dev/null; then

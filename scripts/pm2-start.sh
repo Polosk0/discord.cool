@@ -73,8 +73,8 @@ if pm2 list | grep -q "discord-bot"; then
     exit 1
 fi
 
-# Make sure start.sh is executable
-chmod +x start.sh 2>/dev/null || true
+# Make sure start scripts are executable
+chmod +x start.sh start.js 2>/dev/null || true
 
 # Start with PM2
 print_info "Starting bot with PM2..."

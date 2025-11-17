@@ -2,8 +2,8 @@ export default {
   apps: [
     {
       name: 'discord-bot',
-      script: './start.sh',
-      interpreter: 'bash',
+      script: './start.js',
+      interpreter: 'node',
       cwd: './',
       instances: 1,
       autorestart: true,

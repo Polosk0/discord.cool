@@ -6,7 +6,8 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "start": "node start.js",
+    "start:direct": "tsx src/index.ts",
     "build": "tsc",
     "test": "echo 'Add your test script here'"
   },
