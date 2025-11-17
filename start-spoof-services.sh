@@ -30,11 +30,22 @@ if [ -f "/etc/gost/gost.conf" ] && command -v gost &> /dev/null; then
     # Créer un script wrapper pour Gost
     cat <<'GOSTWRAPPER' > /tmp/gost-wrapper.sh
 #!/bin/bash
-exec gost -c /etc/gost/gost.conf -L /var/log/gost.log
+cd /
+exec gost -c /etc/gost/gost.conf -L /var/log/gost.log 2>&1
 GOSTWRAPPER
     chmod +x /tmp/gost-wrapper.sh
-    pm2 start /tmp/gost-wrapper.sh --name gost
-    echo "✓ Gost démarré avec PM2"
+    # Démarrer avec PM2 et rediriger les erreurs
+    pm2 start /tmp/gost-wrapper.sh --name gost --log /var/log/gost-pm2.log --error /var/log/gost-pm2-error.log
+    sleep 2
+    # Vérifier que Gost a démarré correctement
+    if pm2 list | grep gost | grep -q "online"; then
+        echo "✓ Gost démarré avec PM2"
+    else
+        echo "⚠ Gost a des problèmes, vérifiez les logs:"
+        echo "  → pm2 logs gost"
+        echo "  → tail /var/log/gost.log"
+        echo "  → tail /var/log/gost-pm2-error.log"
+    fi
 else
     echo "⚠ Gost non configuré, ignoré"
 fi
