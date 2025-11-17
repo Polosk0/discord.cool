@@ -68,14 +68,19 @@ class LicenseService {
     return key;
   }
 
-  createLicense(userId: string, expiresInDays: number | null = null, permissions: string[] = ['bot', 'attack']): string {
-    const licenseKey = this.generateLicenseKey();
+  createLicense(userId: string, expiresInDays: number | null = null, permissions: string[] = ['bot', 'attack'], licenseKey?: string): string {
+    const key = licenseKey || this.generateLicenseKey();
     const now = Date.now();
     const expiresAt = expiresInDays ? now + expiresInDays * 24 * 60 * 60 * 1000 : null;
 
+    const existingLicense = this.licenses.get(userId);
+    if (existingLicense && existingLicense.licenseKey !== key) {
+      this.licenses.delete(userId);
+    }
+
     const license: License = {
       userId,
-      licenseKey,
+      licenseKey: key,
       createdAt: now,
       expiresAt,
       permissions,
@@ -85,7 +90,7 @@ class LicenseService {
     this.saveLicenses();
 
     logger.info(`License created for user ${userId}`);
-    return licenseKey;
+    return key;
   }
 
   hasLicense(userId: string): boolean {
