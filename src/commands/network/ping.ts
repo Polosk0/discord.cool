@@ -153,9 +153,29 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
 
     let stopped = false;
+    let updateCount = 0;
+    const maxUpdates = 60;
+    
     const updateInterval = setInterval(async () => {
       if (stopped) {
         clearInterval(updateInterval);
+        return;
+      }
+
+      updateCount++;
+      if (updateCount > maxUpdates) {
+        clearInterval(updateInterval);
+        try {
+          const finalResults = await checkHostService.getPingResults(requestId);
+          const finalEmbed = createPingEmbed(host, finalResults.nodes, finalResults.completed, requestId);
+          finalEmbed.setFooter({ text: 'Update timeout - test may still be running' });
+          await interaction.editReply({
+            embeds: [finalEmbed],
+            components: [row],
+          });
+        } catch {
+          // Ignore
+        }
         return;
       }
 
@@ -163,28 +183,48 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         const results = await checkHostService.getPingResults(requestId);
         const newEmbed = createPingEmbed(host, results.nodes, results.completed, requestId);
 
-        await interaction.editReply({
-          embeds: [newEmbed],
-          components: [row],
-        });
+        try {
+          await interaction.editReply({
+            embeds: [newEmbed],
+            components: [row],
+          });
+        } catch (editError: any) {
+          if (editError.code === 40060 || editError.code === 10062) {
+            clearInterval(updateInterval);
+            return;
+          }
+          throw editError;
+        }
 
         if (results.completed) {
           clearInterval(updateInterval);
           const finalEmbed = createPingEmbed(host, results.nodes, true, requestId);
           finalEmbed.setFooter({ text: 'Test completed • Click Stop to end live updates' });
-          await interaction.editReply({
-            embeds: [finalEmbed],
-            components: [row],
-          });
+          try {
+            await interaction.editReply({
+              embeds: [finalEmbed],
+              components: [row],
+            });
+          } catch {
+            // Ignore
+          }
         }
-      } catch (error) {
+      } catch (error: any) {
+        if (error.code === 40060 || error.code === 10062) {
+          clearInterval(updateInterval);
+          return;
+        }
         clearInterval(updateInterval);
-        await interaction.editReply({
-          content: `❌ Failed to get ping results: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          components: [],
-        });
+        try {
+          await interaction.editReply({
+            content: `❌ Failed to get ping results: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            components: [],
+          });
+        } catch {
+          // Ignore
+        }
       }
-    }, 1000);
+    }, 2000);
 
     const collector = message.createMessageComponentCollector({
       componentType: ComponentType.Button,
