@@ -85,14 +85,34 @@ if [ -d .git ]; then
     print_info "Fetching latest changes from repository..."
     git fetch origin
     
+    # Check for local changes
+    if ! git diff-index --quiet HEAD --; then
+        print_warning "Local changes detected. Stashing them..."
+        git stash push -m "Auto-stash before deploy $(date +%Y%m%d_%H%M%S)"
+        print_success "Local changes stashed"
+    fi
+    
     print_info "Pulling changes from branch: $BRANCH"
     git pull origin "$BRANCH"
     
     if [ $? -ne 0 ]; then
         print_error "Failed to pull changes"
-        exit 1
+        print_info "Trying to resolve conflicts..."
+        
+        # Try to reset to remote if pull fails
+        print_warning "Resetting to match remote (local changes will be lost)"
+        git fetch origin
+        git reset --hard origin/"$BRANCH"
+        
+        if [ $? -eq 0 ]; then
+            print_success "Successfully reset to remote branch"
+        else
+            print_error "Failed to reset. Please resolve conflicts manually"
+            exit 1
+        fi
+    else
+        print_success "Code updated successfully"
     fi
-    print_success "Code updated successfully"
 else
     if [ -z "$REPO_URL" ]; then
         print_error "Not a git repository and REPO_URL not set"
