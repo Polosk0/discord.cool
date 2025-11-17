@@ -42,28 +42,14 @@ async function loadCommands(): Promise<any[]> {
       try {
         const command = await import(fileUrl);
         if ('data' in command && 'execute' in command) {
+          const commandName = command.data.name;
+          // Check for duplicates
+          if (commands.some((cmd) => cmd.name === commandName)) {
+            console.warn(`⚠️  Duplicate command skipped: ${commandName}`);
+            continue;
+          }
           commands.push(command.data.toJSON());
-          console.log(`✅ Loaded command: ${command.data.name}`);
-        }
-      } catch (error) {
-        console.error(`❌ Failed to load command from ${file}:`, error);
-      }
-    }
-  }
-
-  const utilityPath = join(commandsPath, 'utility');
-  if (readdirSync(commandsPath).includes('utility')) {
-    const utilityFiles = readdirSync(utilityPath).filter((file) => file.endsWith('.ts'));
-
-    for (const file of utilityFiles) {
-      const filePath = join(utilityPath, file);
-      const fileUrl = `file://${filePath.replace(/\\/g, '/')}`;
-      
-      try {
-        const command = await import(fileUrl);
-        if ('data' in command && 'execute' in command) {
-          commands.push(command.data.toJSON());
-          console.log(`✅ Loaded command: ${command.data.name}`);
+          console.log(`✅ Loaded command: ${commandName}`);
         }
       } catch (error) {
         console.error(`❌ Failed to load command from ${file}:`, error);

@@ -5,22 +5,40 @@ export const data = new SlashCommandBuilder()
   .setDescription('Activate your license key');
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const modal = new ModalBuilder()
-    .setCustomId(`license_activate_${interaction.user.id}`)
-    .setTitle('Activate License');
+  if (interaction.replied || interaction.deferred) {
+    return;
+  }
 
-  const keyInput = new TextInputBuilder()
-    .setCustomId('license_key')
-    .setLabel('License Key')
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder('XXXX-XXXX-XXXX-XXXX')
-    .setRequired(true)
-    .setMaxLength(19);
+  try {
+    const modal = new ModalBuilder()
+      .setCustomId(`license_activate_${interaction.user.id}`)
+      .setTitle('Activate License');
 
-  const keyRow = new ActionRowBuilder<TextInputBuilder>().addComponents(keyInput);
+    const keyInput = new TextInputBuilder()
+      .setCustomId('license_key')
+      .setLabel('License Key')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('XXXX-XXXX-XXXX-XXXX')
+      .setRequired(true)
+      .setMaxLength(19);
 
-  modal.addComponents(keyRow);
+    const keyRow = new ActionRowBuilder<TextInputBuilder>().addComponents(keyInput);
 
-  await interaction.showModal(modal);
+    modal.addComponents(keyRow);
+
+    await interaction.showModal(modal);
+  } catch (error) {
+    console.error('Failed to show license-activate modal:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      try {
+        await interaction.reply({
+          content: '❌ Failed to open license activation modal. Please try again.',
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch {
+        // Ignore if already replied
+      }
+    }
+  }
 }
 
