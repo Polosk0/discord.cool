@@ -312,7 +312,23 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction): Pro
 
     modal.addComponents(targetRow, durationRow, threadsRow, portRow);
 
-    await interaction.showModal(modal);
+    try {
+      await interaction.showModal(modal);
+    } catch (error: any) {
+      if (error.code !== 40060 && error.code !== 10062) {
+        logger.error('Failed to show attack method modal', error);
+        if (!interaction.replied && !interaction.deferred) {
+          try {
+            await interaction.reply({
+              content: '❌ Failed to open attack configuration. Please try again.',
+              flags: MessageFlags.Ephemeral,
+            });
+          } catch {
+            // Ignore if already replied
+          }
+        }
+      }
+    }
     return;
   }
 }
