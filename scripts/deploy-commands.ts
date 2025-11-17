@@ -43,10 +43,10 @@ async function loadCommands(): Promise<any[]> {
         const command = await import(fileUrl);
         if ('data' in command && 'execute' in command) {
           commands.push(command.data.toJSON());
-          logger.info(`Loaded command: ${command.data.name}`);
+          console.log(`✅ Loaded command: ${command.data.name}`);
         }
       } catch (error) {
-        logger.error(`Failed to load command from ${file}:`, error);
+        console.error(`❌ Failed to load command from ${file}:`, error);
       }
     }
   }
