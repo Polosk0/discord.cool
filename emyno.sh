@@ -972,14 +972,202 @@ test_connection() {
     read -p "$(echo -e ${YELLOW}Target to test:${NC} ) " test_target
     echo -e "${CYAN}Testing connection to $test_target...${NC}"
     
+    local start_time=$(date +%s%N)
     if timeout 5 curl -s -k -m 3 "https://$test_target" > /dev/null 2>&1; then
-        echo -e "${GREEN}✓ HTTPS connection successful${NC}"
+        local end_time=$(date +%s%N)
+        local duration=$(( (end_time - start_time) / 1000000 ))
+        echo -e "${GREEN}✓ HTTPS connection successful (${duration}ms)${NC}"
     elif timeout 5 curl -s -m 3 "http://$test_target" > /dev/null 2>&1; then
-        echo -e "${GREEN}✓ HTTP connection successful${NC}"
+        local end_time=$(date +%s%N)
+        local duration=$(( (end_time - start_time) / 1000000 ))
+        echo -e "${GREEN}✓ HTTP connection successful (${duration}ms)${NC}"
     else
         echo -e "${RED}✗ Connection failed${NC}"
     fi
     
+    read -p "Press Enter to continue..."
+}
+
+# Fonction pour monitoring système
+system_monitoring() {
+    clear
+    show_header
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC} ${BOLD}System Monitoring${NC}                                                    ${CYAN}║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}CPU Usage:${NC}"
+    top -bn1 | grep "Cpu(s)" | sed 's/.*, *\([0-9.]*\)%* id.*/\1/' | awk '{printf "  Idle: %.1f%% | Used: %.1f%%\n", $1, 100-$1}'
+    
+    echo -e "${YELLOW}Memory Usage:${NC}"
+    free -h | grep Mem | awk '{printf "  Total: %s | Used: %s | Free: %s | Usage: %.1f%%\n", $2, $3, $4, ($3/$2)*100}'
+    
+    echo -e "${YELLOW}Network Interfaces:${NC}"
+    ifconfig | grep -E "^[a-z]|inet " | grep -B1 "inet " | awk '/^[a-z]/ {iface=$1} /inet / {printf "  %s: %s\n", iface, $2}'
+    
+    echo -e "${YELLOW}Top 5 Processes by CPU:${NC}"
+    ps aux --sort=-%cpu | head -n 6 | tail -n 5 | awk '{printf "  %s (PID: %s) - CPU: %s%% | MEM: %s%%\n", $11, $2, $3, $4}'
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Fonction pour test de bande passante
+bandwidth_test() {
+    clear
+    show_header
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC} ${BOLD}Bandwidth Test${NC}                                                       ${CYAN}║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}Testing download speed...${NC}"
+    
+    # Test avec plusieurs serveurs
+    local servers=(
+        "http://speedtest.tele2.net/10MB.zip"
+        "http://ipv4.download.thinkbroadband.com/10MB.zip"
+    )
+    
+    for server in "${servers[@]}"; do
+        echo -e "${CYAN}Testing: $server${NC}"
+        local start_time=$(date +%s)
+        local size=$(curl -s -o /dev/null -w "%{size_download}" --max-time 10 "$server" 2>/dev/null)
+        local end_time=$(date +%s)
+        local duration=$((end_time - start_time))
+        
+        if [ "$duration" -gt 0 ] && [ "$size" -gt 0 ]; then
+            local speed_mbps=$(echo "scale=2; ($size * 8) / ($duration * 1024 * 1024)" | bc 2>/dev/null || echo "0")
+            echo -e "${GREEN}  Speed: ${speed_mbps} Mbps${NC}"
+        fi
+    done
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Fonction pour statistiques réseau
+network_statistics() {
+    clear
+    show_header
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC} ${BOLD}Network Statistics${NC}                                                 ${CYAN}║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}Active Connections:${NC}"
+    netstat -tun 2>/dev/null | grep ESTABLISHED | wc -l | awk '{printf "  ESTABLISHED: %s\n", $1}'
+    netstat -tun 2>/dev/null | grep TIME_WAIT | wc -l | awk '{printf "  TIME_WAIT: %s\n", $1}'
+    
+    echo -e "${YELLOW}Network Traffic (ifconfig):${NC}"
+    ifconfig 2>/dev/null | grep -E "RX packets|TX packets" | awk '{if (NR%2==1) rx=$2$3$4$5; else printf "  %s TX: %s\n", rx, $2$3$4$5}'
+    
+    echo -e "${YELLOW}Listening Ports:${NC}"
+    netstat -tuln 2>/dev/null | grep LISTEN | awk '{printf "  %s:%s (%s)\n", $1, $4, $7}' | head -10
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Fonction pour test de latence
+latency_test() {
+    clear
+    show_header
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC} ${BOLD}Latency Test${NC}                                                         ${CYAN}║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    local hosts=("8.8.8.8" "1.1.1.1" "google.com" "cloudflare.com")
+    
+    for host in "${hosts[@]}"; do
+        echo -e "${CYAN}Testing: $host${NC}"
+        if ping -c 3 -W 2 "$host" > /dev/null 2>&1; then
+            local avg=$(ping -c 3 -W 2 "$host" 2>/dev/null | grep "avg" | awk -F'/' '{print $5}')
+            echo -e "${GREEN}  Average latency: ${avg}ms${NC}"
+        else
+            echo -e "${RED}  Host unreachable${NC}"
+        fi
+    done
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Fonction pour voir les stats d'attaque
+view_attack_stats() {
+    clear
+    show_header
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC} ${BOLD}Attack Statistics${NC}                                                  ${CYAN}║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    local found=false
+    for log_file in /tmp/dstat_*.log; do
+        if [ -f "$log_file" ]; then
+            found=true
+            local method=$(basename "$log_file" | sed 's/dstat_//;s/.log//')
+            echo -e "${YELLOW}Method: $method${NC}"
+            show_dstat_stats "$method"
+            echo ""
+        fi
+    done
+    
+    if [ "$found" = false ]; then
+        echo -e "${YELLOW}No attack statistics available${NC}"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Fonction pour monitor des processus
+process_monitor() {
+    clear
+    show_header
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC} ${BOLD}Process Monitor${NC}                                                     ${CYAN}║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}Top 10 Processes by CPU:${NC}"
+    ps aux --sort=-%cpu | head -n 11 | tail -n 10 | awk '{printf "  %-20s (PID: %6s) - CPU: %5s%% | MEM: %5s%%\n", $11, $2, $3, $4}'
+    
+    echo ""
+    echo -e "${YELLOW}Top 10 Processes by Memory:${NC}"
+    ps aux --sort=-%mem | head -n 11 | tail -n 10 | awk '{printf "  %-20s (PID: %6s) - CPU: %5s%% | MEM: %5s%%\n", $11, $2, $3, $4}'
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Fonction pour info interfaces réseau
+network_interface_info() {
+    clear
+    show_header
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC} ${BOLD}Network Interface Information${NC}                                        ${CYAN}║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}All Network Interfaces:${NC}"
+    ifconfig -a 2>/dev/null | grep -E "^[a-z]|inet |inet6 |RX|TX" | while read line; do
+        if [[ "$line" =~ ^[a-z] ]]; then
+            echo -e "${CYAN}  Interface: $line${NC}"
+        elif [[ "$line" =~ inet ]]; then
+            echo -e "    $line"
+        elif [[ "$line" =~ RX|TX ]]; then
+            echo -e "    $line"
+        fi
+    done
+    
+    echo ""
+    echo -e "${YELLOW}Routing Table:${NC}"
+    ip route 2>/dev/null | head -10 || route -n 2>/dev/null | head -10
+    
+    echo ""
     read -p "Press Enter to continue..."
 }
 
