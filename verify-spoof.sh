@@ -172,18 +172,23 @@ if systemctl is-active --quiet tor; then
     if [ -f "/etc/proxychains.conf" ]; then
         if grep -q "127.0.0.1.*9050\|127.0.0.1.*9051" /etc/proxychains.conf; then
             echo "  → ProxyChains configuré pour utiliser Tor"
-            # Test simple avec timeout plus long
-            if timeout 10 proxychains4 curl -s --max-time 5 https://ifconfig.me > /dev/null 2>&1; then
-                IP=$(timeout 10 proxychains4 curl -s --max-time 5 https://ifconfig.me 2>/dev/null || echo "")
-                if [ -n "$IP" ] && [ "$IP" != "" ]; then
-                    echo "  → IP via ProxyChains/Tor: $IP"
-                else
-                    echo "  ⚠ ProxyChains fonctionne mais n'a pas pu récupérer l'IP (peut être normal)"
-                    ((WARNINGS++))
+            # Test simple avec timeout plus long (essayer plusieurs sites)
+            IP=""
+            for test_url in "https://api.ipify.org" "https://icanhazip.com" "https://ifconfig.co/ip"; do
+                if timeout 10 proxychains4 curl -s --max-time 5 "$test_url" 2>/dev/null | grep -E "^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$" > /dev/null; then
+                    IP=$(timeout 10 proxychains4 curl -s --max-time 5 "$test_url" 2>/dev/null | grep -E "^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$" || echo "")
+                    break
                 fi
+            done
+            
+            if [ -n "$IP" ] && [ "$IP" != "" ]; then
+                echo "  → IP via ProxyChains/Tor: $IP"
+            elif timeout 10 proxychains4 curl -s --max-time 5 https://www.google.com > /dev/null 2>&1; then
+                echo "  ✓ ProxyChains fonctionne (connexion réussie, mais IP non récupérable)"
+                echo "  → Les sites de test peuvent bloquer les connexions Tor"
             else
                 echo "  ⚠ ProxyChains ne répond pas (Tor peut être en cours d'initialisation)"
-                echo "  → Attendez quelques secondes et réessayez: proxychains4 curl https://ifconfig.me"
+                echo "  → Attendez quelques secondes et réessayez: proxychains4 curl https://www.google.com"
                 ((WARNINGS++))
             fi
         else
