@@ -2,10 +2,9 @@ export default {
   apps: [
     {
       name: 'discord-bot',
-      script: 'tsx',
-      args: 'src/index.ts',
+      script: 'pnpm',
+      args: 'dev',
       cwd: './',
-      interpreter: 'node',
       instances: 1,
       autorestart: true,
       watch: false,
