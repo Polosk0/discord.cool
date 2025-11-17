@@ -1,0 +1,28 @@
+{
+  "name": "discord.cool",
+  "version": "1.0.0",
+  "description": "Discord bot/script project",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "echo 'Add your dev script here'",
+    "build": "echo 'Add your build script here'",
+    "start": "echo 'Add your start script here'",
+    "test": "echo 'Add your test script here'"
+  },
+  "keywords": [
+    "discord",
+    "bot"
+  ],
+  "author": "Polosk0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Polosk0/discord.cool.git"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
+
