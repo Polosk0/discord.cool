@@ -12,8 +12,8 @@ systemctl stop tor 2>/dev/null || true
 echo "✓ Processus arrêtés"
 echo ""
 
-# Suppression des répertoires clonés
-echo "[2/8] Suppression des répertoires clonés..."
+# Suppression des répertoires clonés (inclut les venvs)
+echo "[2/8] Suppression des répertoires clonés (inclut les venvs Python)..."
 rm -rf /opt/proxychains 2>/dev/null || true
 rm -rf /opt/gost 2>/dev/null || true
 rm -rf /opt/CloudflareSpeedtest 2>/dev/null || true
@@ -22,7 +22,7 @@ rm -rf proxychains 2>/dev/null || true
 rm -rf gost 2>/dev/null || true
 rm -rf CloudflareSpeedtest 2>/dev/null || true
 rm -rf slowloris 2>/dev/null || true
-echo "✓ Répertoires clonés supprimés"
+echo "✓ Répertoires clonés et venvs supprimés"
 echo ""
 
 # Suppression des fichiers téléchargés
@@ -42,7 +42,9 @@ rm -f /usr/bin/proxychains 2>/dev/null || true
 rm -f /usr/bin/proxyresolv 2>/dev/null || true
 rm -f /usr/lib/libproxychains.so.4 2>/dev/null || true
 rm -f /usr/local/bin/start_attacks.sh 2>/dev/null || true
-echo "✓ Binaires supprimés"
+rm -f /usr/local/bin/slowloris 2>/dev/null || true
+rm -f /usr/local/bin/cloudflarespeedtest 2>/dev/null || true
+echo "✓ Binaires et wrappers supprimés"
 echo ""
 
 # Suppression des configurations personnalisées
@@ -99,8 +101,9 @@ echo "Les packages système (tor, nginx, hping3, etc.) n'ont PAS été désinsta
 echo "Pour les désinstaller, exécutez :"
 echo "  apt remove --purge tor nginx hping3 -y"
 echo ""
-echo "Les packages Python (cloudscraper, etc.) n'ont PAS été désinstallés."
-echo "Pour les désinstaller, exécutez :"
+echo "Les packages Python globaux n'ont PAS été désinstallés."
+echo "Note: Les packages installés dans les venvs ont été supprimés avec les répertoires."
+echo "Pour désinstaller les packages Python globaux, exécutez :"
 echo "  pip3 uninstall cloudscraper requests requests-toolbelt -y"
 echo ""
 echo "Vous pouvez maintenant relancer ./spoof.sh pour une installation propre."
