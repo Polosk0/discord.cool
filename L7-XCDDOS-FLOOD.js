@@ -374,6 +374,11 @@ function getRandomInt(min, max) {
     const randomIndex = Math.floor(Math.random() * arr.length);
     return arr[randomIndex];
   }
+ function isIPAddress(str) {
+     const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+     const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^::$/;
+     return ipv4Regex.test(str) || ipv6Regex.test(str);
+  }
   function randstra(length) {
 const characters = "0123456789";
 let result = "";
@@ -659,9 +664,12 @@ let headers = {
        secureOptions: secureOptions,
        secureContext :secureContext,
        host : parsedTarget.host,
-       servername: parsedTarget.host,
        secureProtocol: secureProtocol
    };
+    
+    if (!isIPAddress(parsedTarget.hostname)) {
+        tlsOptions.servername = parsedTarget.hostname;
+    }
     const tlsConn = tls.connect(parsedPort, parsedTarget.host, tlsOptions);
 
     tlsConn.allowHalfOpen = true;
