@@ -78,7 +78,23 @@ chmod +x start.sh start.js 2>/dev/null || true
 
 # Start with PM2
 print_info "Starting bot with PM2..."
-pm2 start ecosystem.config.js
+
+# Try ecosystem.config.cjs first (more compatible), then .js
+if [ -f ecosystem.config.cjs ]; then
+    pm2 start ecosystem.config.cjs
+elif [ -f ecosystem.config.js ]; then
+    pm2 start ecosystem.config.js
+else
+    # Fallback: direct command
+    print_warning "Config file not found, using direct command..."
+    if [ -f start.js ]; then
+        pm2 start start.js --name discord-bot
+    elif [ -f node_modules/.bin/tsx ]; then
+        pm2 start node_modules/.bin/tsx --name discord-bot -- src/index.ts
+    else
+        pm2 start pnpm --name discord-bot -- start
+    fi
+fi
 
 if [ $? -eq 0 ]; then
     print_success "Bot started with PM2!"

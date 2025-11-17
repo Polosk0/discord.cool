@@ -1,18 +1,9 @@
-import { fileURLToPath } from 'url';
-import { dirname, resolve, join } from 'path';
-import { existsSync } from 'fs';
+const { resolve, join } = require('path');
+const { existsSync } = require('fs');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = __dirname || process.cwd();
 
 // Try multiple possible script paths
-const possibleScripts = [
-  resolve(__dirname, 'start.js'),
-  resolve(__dirname, 'node_modules', '.bin', 'tsx'),
-  join(__dirname, 'start.js'),
-  join(__dirname, 'node_modules', '.bin', 'tsx'),
-];
-
 let scriptPath = null;
 let scriptArgs = [];
 
@@ -33,7 +24,7 @@ if (existsSync(startJsPath)) {
   }
 }
 
-export default {
+module.exports = {
   apps: [
     {
       name: 'discord-bot',
