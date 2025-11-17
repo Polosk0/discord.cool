@@ -238,10 +238,10 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction): Pro
       .setRequired(false)
       .setMaxLength(5);
 
-    const targetRow = new ActionRowBuilder<TextInputBuilder>().addComponents(targetInput);
-    const durationRow = new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput);
-    const threadsRow = new ActionRowBuilder<TextInputBuilder>().addComponents(threadsInput);
-    const portRow = new ActionRowBuilder<TextInputBuilder>().addComponents(portInput);
+    const targetRow = new ActionRowBuilder().addComponents(targetInput);
+    const durationRow = new ActionRowBuilder().addComponents(durationInput);
+    const threadsRow = new ActionRowBuilder().addComponents(threadsInput);
+    const portRow = new ActionRowBuilder().addComponents(portInput);
 
     modal.addComponents(targetRow, durationRow, threadsRow, portRow);
 

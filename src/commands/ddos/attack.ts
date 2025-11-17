@@ -4,15 +4,9 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
   ActionRowBuilder,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
 } from 'discord.js';
-import { AttackConfig, DDoSMethod } from '../../types';
-import { ddosService } from '../../services/ddos';
-import { isValidUrl, isValidIp, isValidDomain, isValidDuration, isValidThreads } from '../../utils/validators';
+import { isValidIp, isValidDomain } from '../../utils/validators';
 import { rateLimiter } from '../../utils/rate-limiter';
-import { logger } from '../../utils/logger';
 import { licenseService } from '../../services/license';
 
 export const data = new SlashCommandBuilder()

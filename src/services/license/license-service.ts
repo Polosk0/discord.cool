@@ -113,13 +113,13 @@ class LicenseService {
     return license?.permissions.includes(permission) || false;
   }
 
-  validateLicenseKey(licenseKey: string): { valid: boolean; userId?: string } {
+  validateLicenseKey(licenseKey: string): { valid: boolean; userId?: string; license?: License } {
     for (const [userId, license] of this.licenses.entries()) {
       if (license.licenseKey === licenseKey) {
         if (license.expiresAt && Date.now() > license.expiresAt) {
           return { valid: false };
         }
-        return { valid: true, userId };
+        return { valid: true, userId, license };
       }
     }
     return { valid: false };
