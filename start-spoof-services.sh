@@ -27,15 +27,8 @@ pm2 delete tor-check 2>/dev/null || true
 # Démarrer Gost
 if [ -f "/etc/gost/gost.conf" ] && command -v gost &> /dev/null; then
     echo "Démarrage de Gost..."
-    # Créer un script wrapper pour Gost
-    cat <<'GOSTWRAPPER' > /tmp/gost-wrapper.sh
-#!/bin/bash
-cd /
-exec gost -C /etc/gost/gost.conf -L /var/log/gost.log 2>&1
-GOSTWRAPPER
-    chmod +x /tmp/gost-wrapper.sh
-    # Démarrer avec PM2 et rediriger les erreurs
-    pm2 start /tmp/gost-wrapper.sh --name gost --log /var/log/gost-pm2.log --error /var/log/gost-pm2-error.log
+    # Démarrer Gost directement avec PM2
+    pm2 start gost --name gost -- -C /etc/gost/gost.conf -L /var/log/gost.log
     sleep 2
     # Vérifier que Gost a démarré correctement
     if pm2 list | grep gost | grep -q "online"; then
@@ -44,7 +37,6 @@ GOSTWRAPPER
         echo "⚠ Gost a des problèmes, vérifiez les logs:"
         echo "  → pm2 logs gost"
         echo "  → tail /var/log/gost.log"
-        echo "  → tail /var/log/gost-pm2-error.log"
     fi
 else
     echo "⚠ Gost non configuré, ignoré"
