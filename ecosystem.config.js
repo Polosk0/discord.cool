@@ -3,7 +3,7 @@ export default {
     {
       name: 'discord-bot',
       script: 'pnpm',
-      args: 'dev',
+      args: 'start',
       cwd: './',
       instances: 1,
       autorestart: true,
