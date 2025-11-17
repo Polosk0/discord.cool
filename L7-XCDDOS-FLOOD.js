@@ -588,7 +588,7 @@ let headers = {
 }
 
  const proxyOptions = {
-     host: proxyAddr.includes("@") ? proxyAddr : parsedProxy[0],
+     host: proxyAddr,
      port: ~~parsedProxy[1],
      address: parsedTarget.host + ":443",
      timeout: 25
