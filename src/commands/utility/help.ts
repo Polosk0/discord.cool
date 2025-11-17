@@ -15,14 +15,20 @@ export const data = new SlashCommandBuilder()
 
 const commandDescriptions: Record<string, { description: string; usage: string; category: string; permissions?: string; examples?: string[] }> = {
   attack: {
-    description: 'Launch a DDoS attack on a target',
-    usage: '`/attack target:<url|ip|domain> method:<method> duration:<seconds> threads:<number> [port:<number>]`',
+    description: 'Launch a DDoS attack on a target (interactive modal)',
+    usage: '`/attack` - Opens interactive menu to select method and configure attack',
     category: '🚀 DDoS',
-    permissions: '🔒 Admin Only',
+    permissions: '🔒 License Required (attack permission)',
     examples: [
-      '`/attack target:https://example.com method:http-flood duration:60 threads:50`',
-      '`/attack target:192.168.1.1 method:tcp-flood duration:120 threads:100 port:80`',
+      '`/attack` - Opens method selection menu',
     ],
+  },
+  methods: {
+    description: 'View detailed information about DDoS attack methods',
+    usage: '`/methods` - Opens interactive menu to browse attack methods',
+    category: '🚀 DDoS',
+    permissions: '🔒 License Required',
+    examples: ['`/methods`'],
   },
   stop: {
     description: 'Stop all active DDoS attacks',
@@ -69,9 +75,10 @@ const commandDescriptions: Record<string, { description: string; usage: string; 
     ],
   },
   dstat: {
-    description: 'Display real-time system statistics (CPU, Memory, Network, Disk)',
-    usage: '`/dstat`',
+    description: 'Display live system statistics updated every second',
+    usage: '`/dstat` - Shows real-time stats with live updates',
     category: '💻 System',
+    permissions: '🔒 License Required',
     examples: ['`/dstat`'],
   },
   help: {
@@ -80,15 +87,36 @@ const commandDescriptions: Record<string, { description: string; usage: string; 
     category: '🛠️ Utility',
     examples: ['`/help`'],
   },
+  'license-create': {
+    description: 'Create a license for a user (Admin only)',
+    usage: '`/license-create user:<user>` - Opens modal to configure license',
+    category: '👑 Admin',
+    permissions: '🔒 Admin Only',
+    examples: ['`/license-create user:@user`'],
+  },
+  'license-revoke': {
+    description: 'Revoke a user license (Admin only)',
+    usage: '`/license-revoke user:<user>`',
+    category: '👑 Admin',
+    permissions: '🔒 Admin Only',
+    examples: ['`/license-revoke user:@user`'],
+  },
+  'license-activate': {
+    description: 'Activate your license key',
+    usage: '`/license-activate` - Opens modal to enter license key',
+    category: '👑 Admin',
+    examples: ['`/license-activate`'],
+  },
 };
 
 function createMainEmbed(): EmbedBuilder {
   const totalCommands = commands.size;
   const categories = {
-    '🚀 DDoS': 2,
+    '🚀 DDoS': 3,
     '🌐 Network': 4,
     '💻 System': 1,
     '🛠️ Utility': 1,
+    '👑 Admin': 3,
   };
 
   return new EmbedBuilder()
@@ -98,7 +126,7 @@ function createMainEmbed(): EmbedBuilder {
     .addFields(
       {
         name: '🚀 DDoS Commands',
-        value: `\`/attack\` - Launch a DDoS attack\n\`/stop\` - Stop all active attacks\n\n*${categories['🚀 DDoS']} command(s)*`,
+        value: `\`/attack\` - Launch attack (modal)\n\`/methods\` - View methods\n\`/stop\` - Stop attacks\n\n*${categories['🚀 DDoS']} command(s)*`,
         inline: true,
       },
       {
@@ -114,6 +142,11 @@ function createMainEmbed(): EmbedBuilder {
       {
         name: '🛠️ Utility Commands',
         value: `\`/help\` - Show this help menu\n\n*${categories['🛠️ Utility']} command(s)*`,
+        inline: true,
+      },
+      {
+        name: '👑 Admin Commands',
+        value: `\`/license-create\` - Create license\n\`/license-revoke\` - Revoke license\n\`/license-activate\` - Activate license\n\n*3 command(s)*`,
         inline: true,
       }
     )
@@ -131,6 +164,7 @@ function createCategoryEmbed(category: string): EmbedBuilder {
     '🌐 Network': 0x00ff00,
     '💻 System': 0x0099ff,
     '🛠️ Utility': 0xffa500,
+    '👑 Admin': 0x9b59b6,
   };
 
   const embed = new EmbedBuilder()
@@ -176,9 +210,15 @@ function createSelectMenu(): ActionRowBuilder<StringSelectMenuBuilder> {
         },
         {
           label: 'DDoS Commands',
-          description: 'Attack and stop commands',
+          description: 'Attack, methods, and stop commands',
           value: '🚀 DDoS',
           emoji: '🚀',
+        },
+        {
+          label: 'Admin Commands',
+          description: 'License management commands',
+          value: '👑 Admin',
+          emoji: '👑',
         },
         {
           label: 'Network Commands',
@@ -197,6 +237,12 @@ function createSelectMenu(): ActionRowBuilder<StringSelectMenuBuilder> {
           description: 'Help and utility commands',
           value: '🛠️ Utility',
           emoji: '🛠️',
+        },
+        {
+          label: 'Admin Commands',
+          description: 'License management',
+          value: '👑 Admin',
+          emoji: '👑',
         }
       )
   );

@@ -13,12 +13,16 @@ async function loadCommands(): Promise<void> {
   const commandModules = [
     await import('./ddos/attack'),
     await import('./ddos/stop'),
+    await import('./ddos/methods'),
     await import('./network/ping'),
     await import('./network/traceroute'),
     await import('./network/port-scan'),
     await import('./network/dns-lookup'),
     await import('./system/dstat'),
     await import('./utility/help'),
+    await import('./admin/license-create'),
+    await import('./admin/license-revoke'),
+    await import('./admin/license-activate'),
   ];
 
   let loadedCount = 0;

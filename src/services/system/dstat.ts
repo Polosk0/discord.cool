@@ -1,8 +1,11 @@
 import { SystemStats } from '../../types';
 import * as os from 'os';
+import { execSync } from 'child_process';
 
 export class DstatService {
   private statsHistory: SystemStats[] = [];
+  private lastCpuUsage = 0;
+  private lastCpuTime = { idle: 0, total: 0 };
 
   getStats(): SystemStats {
     const cpus = os.cpus();
@@ -10,22 +13,45 @@ export class DstatService {
     const freeMem = os.freemem();
     const usedMem = totalMem - freeMem;
 
-    const networkInterfaces = os.networkInterfaces();
-    let received = 0;
-    let sent = 0;
+    const cpuUsage = this.calculateCpuUsage();
+    
+    let diskUsed = 0;
+    let diskTotal = 0;
+    let diskPercentage = 0;
 
-    Object.values(networkInterfaces).forEach((interfaces) => {
-      interfaces?.forEach((iface) => {
-        if (iface.internal === false) {
-          received += parseInt(iface.address.split('.').join(''), 10) || 0;
-          sent += parseInt(iface.address.split('.').join(''), 10) || 0;
+    try {
+      if (process.platform === 'win32') {
+        const result = execSync('wmic logicaldisk get size,freespace,caption', { encoding: 'utf-8' });
+        const lines = result.split('\n').filter((line) => line.trim() && !line.includes('Caption'));
+        if (lines.length > 0) {
+          const parts = lines[0].trim().split(/\s+/);
+          if (parts.length >= 2) {
+            const free = parseInt(parts[0], 10);
+            const total = parseInt(parts[1], 10);
+            if (!isNaN(free) && !isNaN(total)) {
+              diskTotal = total;
+              diskUsed = total - free;
+              diskPercentage = (diskUsed / total) * 100;
+            }
+          }
         }
-      });
-    });
+      } else {
+        const result = execSync("df -B1 / | tail -n 1 | awk '{print $2,$3}'", { encoding: 'utf-8' });
+        const parts = result.trim().split(/\s+/);
+        if (parts.length >= 2) {
+          diskTotal = parseInt(parts[0], 10);
+          diskUsed = parseInt(parts[1], 10);
+          if (!isNaN(diskTotal) && !isNaN(diskUsed)) {
+            diskPercentage = (diskUsed / diskTotal) * 100;
+          }
+        }
+      }
+    } catch {
+    }
 
     const stats: SystemStats = {
       cpu: {
-        usage: this.calculateCpuUsage(),
+        usage: cpuUsage,
         cores: cpus.length,
       },
       memory: {
@@ -34,13 +60,13 @@ export class DstatService {
         percentage: (usedMem / totalMem) * 100,
       },
       network: {
-        received,
-        sent,
+        received: 0,
+        sent: 0,
       },
       disk: {
-        used: 0,
-        total: 0,
-        percentage: 0,
+        used: diskUsed,
+        total: diskTotal,
+        percentage: diskPercentage,
       },
     };
 
@@ -64,7 +90,18 @@ export class DstatService {
       totalIdle += cpu.times.idle;
     });
 
-    return 100 - (totalIdle / totalTick) * 100;
+    if (this.lastCpuTime.total === 0) {
+      this.lastCpuTime = { idle: totalIdle, total: totalTick };
+      return 0;
+    }
+
+    const idle = totalIdle - this.lastCpuTime.idle;
+    const total = totalTick - this.lastCpuTime.total;
+    const usage = 100 - (idle / total) * 100;
+
+    this.lastCpuTime = { idle: totalIdle, total: totalTick };
+
+    return Math.max(0, Math.min(100, usage));
   }
 
   getHistory(): SystemStats[] {
