@@ -13,9 +13,9 @@ export interface DnsLookupResult {
 export class DnsLookupService {
   async lookup(hostname: string): Promise<DnsLookupResult> {
     try {
-      const result = await lookupAsync(hostname, { all: true });
+      const result = await lookupAsync(hostname, { all: true }) as any;
       const addresses = Array.isArray(result) 
-        ? result.map((r) => r.address)
+        ? result.map((r: any) => r.address)
         : [result.address];
 
       return {
@@ -35,7 +35,7 @@ export class DnsLookupService {
 
   async reverseLookup(ip: string): Promise<DnsLookupResult> {
     try {
-      const result = await lookupAsync(ip);
+      const result = await lookupAsync(ip) as any;
       return {
         hostname: result.hostname || ip,
         addresses: [ip],

@@ -1,4 +1,4 @@
-import { AttackConfig, DDoSMethod } from '../../types';
+import { AttackConfig } from '../../types';
 import { httpFloodService } from './http-flood';
 import { tcpFloodService } from './tcp-flood';
 

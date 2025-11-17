@@ -1,5 +1,3 @@
-import { botConfig } from '../config';
-
 interface RateLimitEntry {
   count: number;
   resetAt: number;

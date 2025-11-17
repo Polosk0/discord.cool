@@ -2,17 +2,15 @@ export default {
   apps: [
     {
       name: 'discord-bot',
-      script: 'pnpm',
-      args: 'dev',
+      script: 'tsx',
+      args: 'src/index.ts',
       cwd: './',
+      interpreter: 'node',
       instances: 1,
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
       env: {
-        NODE_ENV: 'development',
-      },
-      env_production: {
         NODE_ENV: 'production',
       },
       error_file: './logs/pm2-error.log',
