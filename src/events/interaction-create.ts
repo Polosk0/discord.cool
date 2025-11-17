@@ -250,11 +250,19 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
 
 async function handleStringSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (interaction.customId === 'attack_method_select') {
+    if (interaction.replied || interaction.deferred) {
+      return;
+    }
+
     if (!licenseService.hasPermission(interaction.user.id, 'attack')) {
-      await interaction.reply({
-        content: '❌ You need a valid license with attack permission.',
-        flags: MessageFlags.Ephemeral,
-      });
+      try {
+        await interaction.reply({
+          content: '❌ You need a valid license with attack permission.',
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch (error) {
+        logger.error('Failed to reply to attack_method_select', error as Error);
+      }
       return;
     }
 
