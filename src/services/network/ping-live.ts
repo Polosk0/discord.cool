@@ -54,23 +54,41 @@ export class LivePingService {
       }
     });
 
+    if (!pingProcess.stdout) {
+      throw new Error('Failed to start ping process');
+    }
+
     let buffer = '';
     
-    pingProcess.stdout?.on('data', (data: string) => {
+    pingProcess.stdout.on('data', (data: string) => {
       buffer += data;
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
       for (const line of lines) {
-        this.parsePingLine(line, stats, host);
+        if (line.trim()) {
+          this.parsePingLine(line, stats, host);
+        }
       }
     });
 
     pingProcess.stderr?.on('data', (data: string) => {
-      logger.warn(`Ping stderr for ${host}:`, data);
+      const errorLine = data.toString().trim();
+      if (errorLine && !errorLine.includes('PING')) {
+        logger.warn(`Ping stderr for ${host}:`, errorLine);
+      }
     });
 
-    pingProcess.on('exit', () => {
+    pingProcess.on('exit', (code) => {
+      logger.info(`Ping process exited for ${host} with code ${code}`);
+      this.pingProcesses.delete(key);
+      setTimeout(() => {
+        this.pingStats.delete(key);
+      }, 5000);
+    });
+
+    pingProcess.on('error', (error) => {
+      logger.error(`Ping process error for ${host}:`, error);
       this.pingProcesses.delete(key);
       this.pingStats.delete(key);
     });
@@ -80,46 +98,77 @@ export class LivePingService {
   }
 
   private parsePingLine(line: string, stats: PingStats, host: string): void {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) return;
+
     if (process.platform === 'win32') {
-      const timeMatch = line.match(/time[<=](\d+(?:\.\d+)?)\s*ms/i);
+      const timeMatch = trimmedLine.match(/time[<=](\d+(?:\.\d+)?)\s*ms/i);
       if (timeMatch) {
         const latency = parseFloat(timeMatch[1]);
         stats.packetsSent++;
         stats.packetsReceived++;
         stats.currentLatency = latency;
         
-        if (latency < stats.minLatency) stats.minLatency = latency;
-        if (latency > stats.maxLatency) stats.maxLatency = latency;
+        if (latency < stats.minLatency || stats.minLatency === Infinity) {
+          stats.minLatency = latency;
+        }
+        if (latency > stats.maxLatency) {
+          stats.maxLatency = latency;
+        }
         
-        const totalLatency = stats.avgLatency * (stats.packetsReceived - 1) + latency;
-        stats.avgLatency = totalLatency / stats.packetsReceived;
+        if (stats.packetsReceived === 1) {
+          stats.avgLatency = latency;
+        } else {
+          const totalLatency = stats.avgLatency * (stats.packetsReceived - 1) + latency;
+          stats.avgLatency = totalLatency / stats.packetsReceived;
+        }
         
-        stats.packetLoss = ((stats.packetsSent - stats.packetsReceived) / stats.packetsSent) * 100;
+        if (stats.packetsSent > 0) {
+          stats.packetLoss = ((stats.packetsSent - stats.packetsReceived) / stats.packetsSent) * 100;
+        }
         stats.lastUpdate = new Date();
-      } else if (line.includes('Request timed out') || line.includes('Destination host unreachable')) {
+      } else if (trimmedLine.includes('Request timed out') || 
+                 trimmedLine.includes('Destination host unreachable') ||
+                 trimmedLine.includes('General failure')) {
         stats.packetsSent++;
-        stats.packetLoss = ((stats.packetsSent - stats.packetsReceived) / stats.packetsSent) * 100;
+        if (stats.packetsSent > 0) {
+          stats.packetLoss = ((stats.packetsSent - stats.packetsReceived) / stats.packetsSent) * 100;
+        }
         stats.lastUpdate = new Date();
       }
     } else {
-      const timeMatch = line.match(/time=(\d+(?:\.\d+)?)\s*ms/i);
+      const timeMatch = trimmedLine.match(/time=(\d+(?:\.\d+)?)\s*ms/i);
       if (timeMatch) {
         const latency = parseFloat(timeMatch[1]);
         stats.packetsSent++;
         stats.packetsReceived++;
         stats.currentLatency = latency;
         
-        if (latency < stats.minLatency) stats.minLatency = latency;
-        if (latency > stats.maxLatency) stats.maxLatency = latency;
+        if (latency < stats.minLatency || stats.minLatency === Infinity) {
+          stats.minLatency = latency;
+        }
+        if (latency > stats.maxLatency) {
+          stats.maxLatency = latency;
+        }
         
-        const totalLatency = stats.avgLatency * (stats.packetsReceived - 1) + latency;
-        stats.avgLatency = totalLatency / stats.packetsReceived;
+        if (stats.packetsReceived === 1) {
+          stats.avgLatency = latency;
+        } else {
+          const totalLatency = stats.avgLatency * (stats.packetsReceived - 1) + latency;
+          stats.avgLatency = totalLatency / stats.packetsReceived;
+        }
         
-        stats.packetLoss = ((stats.packetsSent - stats.packetsReceived) / stats.packetsSent) * 100;
+        if (stats.packetsSent > 0) {
+          stats.packetLoss = ((stats.packetsSent - stats.packetsReceived) / stats.packetsSent) * 100;
+        }
         stats.lastUpdate = new Date();
-      } else if (line.includes('100% packet loss') || line.includes('Network is unreachable')) {
+      } else if (trimmedLine.includes('100% packet loss') || 
+                 trimmedLine.includes('Network is unreachable') ||
+                 trimmedLine.includes('Name or service not known')) {
         stats.packetsSent++;
-        stats.packetLoss = ((stats.packetsSent - stats.packetsReceived) / stats.packetsSent) * 100;
+        if (stats.packetsSent > 0) {
+          stats.packetLoss = ((stats.packetsSent - stats.packetsReceived) / stats.packetsSent) * 100;
+        }
         stats.lastUpdate = new Date();
       }
     }
@@ -132,16 +181,24 @@ export class LivePingService {
 
   stopPing(userId: string, host: string): boolean {
     const key = `${userId}_${host}`;
-    const process = this.pingProcesses.get(key);
+    const pingProcess = this.pingProcesses.get(key);
     
-    if (process) {
-      if (process.platform === 'win32') {
-        process.kill();
-      } else {
-        process.kill('SIGTERM');
+    if (pingProcess) {
+      try {
+        if (process.platform === 'win32') {
+          exec(`taskkill /F /T /PID ${pingProcess.pid}`, () => {});
+        } else {
+          pingProcess.kill('SIGTERM');
+        }
+      } catch (error) {
+        logger.error(`Error stopping ping process:`, error);
       }
+      
       this.pingProcesses.delete(key);
-      this.pingStats.delete(key);
+      setTimeout(() => {
+        this.pingStats.delete(key);
+      }, 1000);
+      
       logger.info(`Stopped live ping for ${host} (user: ${userId})`);
       return true;
     }
