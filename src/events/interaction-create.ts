@@ -337,13 +337,23 @@ export async function execute(interaction: Interaction): Promise<void> {
   if (interaction.isModalSubmit()) {
     try {
       await handleModalSubmit(interaction);
-    } catch (error) {
+    } catch (error: any) {
+      // Ignore "already acknowledged" errors - these are expected in some cases
+      if (error.code === 40060 || error.code === 10062) {
+        return;
+      }
       logger.error('Error handling modal submit', error as Error);
       if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: '❌ An error occurred while processing your request.',
-          flags: MessageFlags.Ephemeral,
-        });
+        try {
+          await interaction.reply({
+            content: '❌ An error occurred while processing your request.',
+            flags: MessageFlags.Ephemeral,
+          });
+        } catch (replyError: any) {
+          if (replyError.code !== 40060 && replyError.code !== 10062) {
+            logger.error('Failed to send error reply for modal submit', replyError);
+          }
+        }
       }
     }
     return;
@@ -352,13 +362,23 @@ export async function execute(interaction: Interaction): Promise<void> {
   if (interaction.isStringSelectMenu()) {
     try {
       await handleStringSelect(interaction);
-    } catch (error) {
+    } catch (error: any) {
+      // Ignore "already acknowledged" errors
+      if (error.code === 40060 || error.code === 10062) {
+        return;
+      }
       logger.error('Error handling string select', error as Error);
       if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: '❌ An error occurred while processing your selection.',
-          flags: MessageFlags.Ephemeral,
-        });
+        try {
+          await interaction.reply({
+            content: '❌ An error occurred while processing your selection.',
+            flags: MessageFlags.Ephemeral,
+          });
+        } catch (replyError: any) {
+          if (replyError.code !== 40060 && replyError.code !== 10062) {
+            logger.error('Failed to send error reply for string select', replyError);
+          }
+        }
       }
     }
     return;
@@ -375,7 +395,12 @@ export async function execute(interaction: Interaction): Promise<void> {
 
   try {
     await command.execute(interaction);
-  } catch (error) {
+  } catch (error: any) {
+    // Ignore "already acknowledged" errors - these are expected in some cases
+    if (error.code === 40060 || error.code === 10062) {
+      return;
+    }
+
     logger.error(`Error executing command ${interaction.commandName}`, error as Error);
 
     const reply = {
@@ -386,14 +411,18 @@ export async function execute(interaction: Interaction): Promise<void> {
     if (interaction.replied || interaction.deferred) {
       try {
         await interaction.followUp(reply);
-      } catch (error) {
-        logger.error('Failed to send error follow-up', error as Error);
+      } catch (followUpError: any) {
+        if (followUpError.code !== 40060 && followUpError.code !== 10062) {
+          logger.error('Failed to send error follow-up', followUpError);
+        }
       }
     } else {
       try {
         await interaction.reply(reply);
-      } catch (error) {
-        logger.error('Failed to send error reply', error as Error);
+      } catch (replyError: any) {
+        if (replyError.code !== 40060 && replyError.code !== 10062) {
+          logger.error('Failed to send error reply', replyError);
+        }
       }
     }
   }
