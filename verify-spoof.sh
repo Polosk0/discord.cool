@@ -85,16 +85,28 @@ echo ""
 echo "[2/10] Vérification des processus..."
 # Vérifier Gost (peut tourner via PM2 ou directement)
 GOST_RUNNING=false
-if pgrep -f "gost -c /etc/gost/gost.conf" > /dev/null; then
+GOST_PM2=false
+
+# Vérifier si Gost tourne directement
+if pgrep -f "gost.*-c.*gost.conf" > /dev/null || pgrep -f "gost-wrapper.sh" > /dev/null; then
     GOST_RUNNING=true
-elif command -v pm2 &> /dev/null && pm2 list | grep -q "gost.*online" 2>/dev/null; then
-    GOST_RUNNING=true
+fi
+
+# Vérifier si Gost tourne via PM2
+if command -v pm2 &> /dev/null; then
+    PM2_LIST=$(pm2 list 2>/dev/null)
+    if echo "$PM2_LIST" | grep -q "gost" && echo "$PM2_LIST" | grep "gost" | grep -q "online"; then
+        GOST_RUNNING=true
+        GOST_PM2=true
+    fi
 fi
 
 if [ "$GOST_RUNNING" = true ]; then
     echo "✓ Gost: EN COURS D'EXÉCUTION"
-    if command -v pm2 &> /dev/null && pm2 list | grep -q "gost.*online" 2>/dev/null; then
+    if [ "$GOST_PM2" = true ]; then
         echo "  → Gost géré par PM2"
+    else
+        echo "  → Gost démarré manuellement"
     fi
 else
     echo "⚠ Gost: NON DÉMARRÉ"
@@ -165,21 +177,35 @@ echo ""
 
 echo "[8/10] Test de Gost..."
 GOST_RUNNING=false
-if pgrep -f "gost -c /etc/gost/gost.conf" > /dev/null; then
+GOST_PM2=false
+
+# Vérifier si Gost tourne directement
+if pgrep -f "gost.*-c.*gost.conf" > /dev/null || pgrep -f "gost-wrapper.sh" > /dev/null; then
     GOST_RUNNING=true
-elif command -v pm2 &> /dev/null && pm2 list | grep -q "gost.*online" 2>/dev/null; then
-    GOST_RUNNING=true
+fi
+
+# Vérifier si Gost tourne via PM2
+if command -v pm2 &> /dev/null; then
+    PM2_LIST=$(pm2 list 2>/dev/null)
+    if echo "$PM2_LIST" | grep -q "gost" && echo "$PM2_LIST" | grep "gost" | grep -q "online"; then
+        GOST_RUNNING=true
+        GOST_PM2=true
+    fi
 fi
 
 if [ "$GOST_RUNNING" = true ]; then
     echo "✓ Gost: EN COURS D'EXÉCUTION"
-    if command -v pm2 &> /dev/null && pm2 list | grep -q "gost.*online" 2>/dev/null; then
+    if [ "$GOST_PM2" = true ]; then
         echo "  → Gost géré par PM2"
         echo "  → Voir les logs: pm2 logs gost"
+    else
+        echo "  → Gost démarré manuellement"
+        if [ -f "/var/log/gost.log" ]; then
+            echo "  → Logs disponibles: /var/log/gost.log"
+        fi
     fi
     if [ -f "/var/log/gost.log" ]; then
-        echo "  → Logs disponibles: /var/log/gost.log"
-        if tail -n 5 /var/log/gost.log 2>/dev/null | grep -q "error\|Error\|ERROR"; then
+        if tail -n 10 /var/log/gost.log 2>/dev/null | grep -qi "error\|Error\|ERROR\|failed\|Failed"; then
             echo "  ⚠ Des erreurs détectées dans les logs"
             ((WARNINGS++))
         fi
