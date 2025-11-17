@@ -784,6 +784,84 @@ SCRIPT_EOF
     chmod +x "/opt/discord.cool/attacks/l4_${method}.sh"
 }
 
+# Fonction pour installer dstat si nécessaire
+install_dstat() {
+    if ! command -v dstat &> /dev/null; then
+        echo -e "${YELLOW}Installing dstat for monitoring...${NC}"
+        apt-get update -qq > /dev/null 2>&1
+        apt-get install -y dstat > /dev/null 2>&1
+    fi
+}
+
+# Fonction pour lancer dstat monitoring
+start_dstat_monitoring() {
+    local method=$1
+    local duration=$2
+    local log_file="/tmp/dstat_${method}.log"
+    
+    install_dstat
+    
+    if command -v dstat &> /dev/null; then
+        echo -e "${CYAN}Starting dstat monitoring (packets, bandwidth, CPU, MEM)...${NC}"
+        dstat -cdngy --net-packets --output "$log_file" 1 > /dev/null 2>&1 &
+        echo $! > "/tmp/dstat_${method}.pid"
+        
+        # Afficher les stats en temps réel dans un autre terminal ou fichier
+        (sleep 2 && while [ -f "/tmp/dstat_${method}.pid" ]; do
+            if [ -f "$log_file" ]; then
+                tail -n 1 "$log_file" 2>/dev/null | awk -F',' '{printf "\r[STATS] CPU: %s%% | MEM: %s%% | NET RX: %s | NET TX: %s | PACKETS RX: %s | PACKETS TX: %s", $1, $2, $3, $4, $5, $6}'
+            fi
+            sleep 1
+        done) &
+    fi
+}
+
+# Fonction pour arrêter dstat
+stop_dstat_monitoring() {
+    local method=$1
+    local pid_file="/tmp/dstat_${method}.pid"
+    
+    if [ -f "$pid_file" ]; then
+        local pid=$(cat "$pid_file")
+        kill "$pid" 2>/dev/null
+        rm -f "$pid_file"
+    fi
+    pkill -f "dstat.*${method}" 2>/dev/null
+}
+
+# Fonction pour afficher les stats dstat
+show_dstat_stats() {
+    local method=$1
+    local log_file="/tmp/dstat_${method}.log"
+    
+    if [ -f "$log_file" ] && [ -s "$log_file" ]; then
+        echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║${NC} ${BOLD}Attack Statistics (dstat)${NC}                                            ${CYAN}║${NC}"
+        echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        
+        # Calculer les moyennes et totaux
+        awk -F',' 'NR>2 {
+            cpu+=$1; mem+=$2; net_rx+=$3; net_tx+=$4; pkt_rx+=$5; pkt_tx+=$6; count++
+        } END {
+            if (count > 0) {
+                printf "Average CPU: %.1f%%\n", cpu/count
+                printf "Average MEM: %.1f%%\n", mem/count
+                printf "Total Network RX: %.2f MB\n", net_rx/1024/1024
+                printf "Total Network TX: %.2f MB\n", net_tx/1024/1024
+                printf "Total Packets RX: %.0f\n", pkt_rx
+                printf "Total Packets TX: %.0f\n", pkt_tx
+            }
+        }' "$log_file" 2>/dev/null
+        
+        echo ""
+        echo -e "${YELLOW}Last 10 entries:${NC}"
+        tail -n 10 "$log_file" | column -t -s',' 2>/dev/null || tail -n 10 "$log_file"
+    else
+        echo -e "${YELLOW}No statistics available yet${NC}"
+    fi
+}
+
 # Fonction pour lancer une attaque L7
 launch_l7_attack() {
     local method=$1
@@ -795,9 +873,20 @@ launch_l7_attack() {
     fi
     
     echo -e "${GREEN}Launching ${method} attack...${NC}"
+    
+    # Démarrer le monitoring dstat
+    start_dstat_monitoring "$method" "$DURATION"
+    
+    # Lancer l'attaque
     bash "$script_path" "$TARGET" "$PORT" "$DURATION" "$THREADS" "$OPTIONS" &
-    echo $! > "/tmp/emyno_${method}.pid"
-    echo -e "${GREEN}Attack started! PID: $(cat /tmp/emyno_${method}.pid)${NC}"
+    local attack_pid=$!
+    echo $attack_pid > "/tmp/emyno_${method}.pid"
+    
+    echo -e "${GREEN}Attack started! PID: $attack_pid${NC}"
+    echo -e "${CYAN}Monitoring active. Stats will be available after attack.${NC}"
+    
+    # Attendre la fin de l'attaque et afficher les stats
+    (wait $attack_pid 2>/dev/null; sleep 2; stop_dstat_monitoring "$method"; show_dstat_stats "$method") &
 }
 
 # Fonction pour lancer une attaque L4

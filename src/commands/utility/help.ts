@@ -6,6 +6,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuInteraction,
   ComponentType,
+  MessageFlags,
 } from 'discord.js';
 import { commands } from '../index';
 
