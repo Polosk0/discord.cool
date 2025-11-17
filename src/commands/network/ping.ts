@@ -8,102 +8,87 @@ import {
   ComponentType,
   MessageFlags,
 } from 'discord.js';
-import { checkHostService } from '../../services/network';
+import { livePingService } from '../../services/network';
 import { isValidIp, isValidDomain } from '../../utils/validators';
 import { rateLimiter } from '../../utils/rate-limiter';
 import { licenseService } from '../../services/license';
 
 export const data = new SlashCommandBuilder()
   .setName('ping')
-  .setDescription('Ping a host from multiple locations worldwide (live updates)')
+  .setDescription('Ping a host with live real-time updates (like Windows ping -t)')
   .addStringOption((option) =>
     option
       .setName('host')
       .setDescription('Host to ping (IP or domain)')
       .setRequired(true)
-  )
-  .addIntegerOption((option) =>
-    option
-      .setName('nodes')
-      .setDescription('Number of nodes to ping from (1-10)')
-      .setMinValue(1)
-      .setMaxValue(10)
   );
 
-function createPingEmbed(host: string, nodes: any[], completed: boolean, requestId?: string): EmbedBuilder {
+function createPingEmbed(host: string, stats: any, isRunning: boolean): EmbedBuilder {
   const embed = new EmbedBuilder()
-    .setTitle(`📡 Ping Test - ${host}`)
-    .setColor(completed ? 0x00ff00 : 0x0099ff)
-    .setDescription(completed ? '✅ All nodes completed' : '🔄 Testing in progress...')
+    .setTitle(`📡 Live Ping - ${host}`)
+    .setColor(isRunning ? 0x00ff00 : 0xff0000)
     .setTimestamp();
 
-  if (nodes.length === 0) {
-    embed.addFields({
-      name: '⏳ Status',
-      value: 'Initializing ping test from multiple locations...',
-      inline: false,
-    });
+  if (!stats || stats.packetsSent === 0) {
+    embed.setDescription('🔄 Starting ping...')
+      .addFields({
+        name: '⏳ Status',
+        value: 'Initializing ping test...',
+        inline: false,
+      });
     return embed;
   }
 
-  const okNodes = nodes.filter((n) => n.status === 'OK');
-  const errorNodes = nodes.filter((n) => n.status === 'ERROR');
-  const pendingNodes = nodes.filter((n) => n.status === 'PENDING');
+  const packetLossColor = stats.packetLoss === 0 ? '🟢' : stats.packetLoss < 10 ? '🟡' : '🔴';
+  const latencyColor = stats.avgLatency < 50 ? '🟢' : stats.avgLatency < 100 ? '🟡' : '🔴';
 
-  if (okNodes.length > 0) {
-    const avgLatency = okNodes.reduce((sum, n) => sum + (n.rtt || 0), 0) / okNodes.length;
-    const minLatency = Math.min(...okNodes.map((n) => n.rtt || Infinity));
-    const maxLatency = Math.max(...okNodes.map((n) => n.rtt || 0));
+  const statusEmoji = isRunning ? '🟢' : '🔴';
+  const statusText = isRunning ? 'Running' : 'Stopped';
 
+  embed.setDescription(`${statusEmoji} **${statusText}** - Live ping in progress`)
+    .addFields(
+      {
+        name: '📊 Statistics',
+        value: `**Packets:** ${stats.packetsReceived}/${stats.packetsSent}\n**Loss:** ${packetLossColor} ${stats.packetLoss.toFixed(1)}%\n**Status:** ${statusText}`,
+        inline: true,
+      },
+      {
+        name: '⚡ Latency',
+        value: `**Current:** ${stats.currentLatency ? `${stats.currentLatency.toFixed(0)}ms` : 'N/A'}\n**Min:** ${stats.minLatency !== Infinity ? `${stats.minLatency.toFixed(0)}ms` : 'N/A'}\n**Max:** ${stats.maxLatency > 0 ? `${stats.maxLatency.toFixed(0)}ms` : 'N/A'}`,
+        inline: true,
+      },
+      {
+        name: '📈 Average',
+        value: `${latencyColor} **${stats.avgLatency > 0 ? stats.avgLatency.toFixed(2) : '0.00'}ms**`,
+        inline: true,
+      }
+    );
+
+  if (stats.packetsReceived > 0) {
+    const successRate = ((stats.packetsReceived / stats.packetsSent) * 100).toFixed(1);
     embed.addFields({
-      name: '📊 Statistics',
-      value: `✅ Success: ${okNodes.length}/${nodes.length}\n📈 Avg: ${avgLatency.toFixed(2)}ms\n⚡ Min: ${minLatency}ms\n📉 Max: ${maxLatency}ms`,
+      name: '✅ Success Rate',
+      value: `${successRate}%`,
       inline: true,
     });
   }
 
-  if (pendingNodes.length > 0) {
-    embed.addFields({
-      name: '⏳ Pending',
-      value: `${pendingNodes.length} node(s) still testing...`,
-      inline: true,
-    });
-  }
+  const lastUpdate = new Date(stats.lastUpdate);
+  const now = new Date();
+  const secondsAgo = Math.floor((now.getTime() - lastUpdate.getTime()) / 1000);
 
-  if (errorNodes.length > 0) {
-    embed.addFields({
-      name: '❌ Errors',
-      value: `${errorNodes.length} node(s) failed`,
-      inline: true,
-    });
-  }
-
-  const nodeFields: string[] = [];
-  for (const node of nodes.slice(0, 10)) {
-    let status = '';
-    if (node.status === 'OK') {
-      status = `✅ ${node.rtt}ms`;
-    } else if (node.status === 'ERROR') {
-      status = `❌ ${node.error || 'Failed'}`;
-    } else {
-      status = '⏳ Testing...';
-    }
-    nodeFields.push(`${node.location} **${node.node}**\n${status}`);
-  }
-
-  if (nodeFields.length > 0) {
-    embed.addFields({
-      name: '🌍 Nodes',
-      value: nodeFields.join('\n\n'),
-      inline: false,
-    });
-  }
-
-  if (requestId) {
-    embed.setFooter({ text: `Request ID: ${requestId.substring(0, 8)}...` });
-  }
+  embed.setFooter({ 
+    text: `Last update: ${secondsAgo}s ago • Click Stop to end ping` 
+  });
 
   return embed;
+}
+
+function createProgressBar(value: number, max: number, length: number = 20): string {
+  const percentage = Math.min(100, Math.max(0, (value / max) * 100));
+  const filled = Math.round((percentage / 100) * length);
+  const empty = length - filled;
+  return '█'.repeat(filled) + '░'.repeat(empty);
 }
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -115,7 +100,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  if (!rateLimiter.isAllowed(interaction.user.id, 'ping', 5, 60000)) {
+  if (!rateLimiter.isAllowed(interaction.user.id, 'ping', 3, 60000)) {
     await interaction.reply({
       content: '❌ Rate limit exceeded. Please wait before using this command again.',
       flags: MessageFlags.Ephemeral,
@@ -124,7 +109,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }
 
   const host = interaction.options.getString('host', true);
-  const maxNodes = interaction.options.getInteger('nodes') || 5;
 
   if (!isValidIp(host) && !isValidDomain(host)) {
     await interaction.reply({
@@ -137,25 +121,19 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply();
 
   try {
-    const requestId = await checkHostService.startPingCheck(host, maxNodes);
+    await livePingService.startLivePing(host, interaction.user.id);
 
-    const embed = createPingEmbed(host, [], false, requestId);
     const stopButton = new ButtonBuilder()
       .setCustomId('ping_stop')
-      .setLabel('Stop Updates')
+      .setLabel('🛑 Stop Ping')
       .setStyle(ButtonStyle.Danger);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(stopButton);
 
-    const message = await interaction.editReply({
-      embeds: [embed],
-      components: [row],
-    });
-
     let stopped = false;
     let updateCount = 0;
-    const maxUpdates = 60;
-    
+    const maxUpdates = 300;
+
     const updateInterval = setInterval(async () => {
       if (stopped) {
         clearInterval(updateInterval);
@@ -165,13 +143,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       updateCount++;
       if (updateCount > maxUpdates) {
         clearInterval(updateInterval);
+        livePingService.stopPing(interaction.user.id, host);
+        const finalStats = livePingService.getStats(interaction.user.id, host);
+        const finalEmbed = createPingEmbed(host, finalStats, false);
+        finalEmbed.setFooter({ text: 'Ping stopped - Maximum time reached (10 minutes)' });
         try {
-          const finalResults = await checkHostService.getPingResults(requestId);
-          const finalEmbed = createPingEmbed(host, finalResults.nodes, finalResults.completed, requestId);
-          finalEmbed.setFooter({ text: 'Update timeout - test may still be running' });
           await interaction.editReply({
             embeds: [finalEmbed],
-            components: [row],
+            components: [],
           });
         } catch {
           // Ignore
@@ -180,55 +159,40 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       }
 
       try {
-        const results = await checkHostService.getPingResults(requestId);
-        const newEmbed = createPingEmbed(host, results.nodes, results.completed, requestId);
+        const stats = livePingService.getStats(interaction.user.id, host);
+        const embed = createPingEmbed(host, stats, !stopped);
 
         try {
           await interaction.editReply({
-            embeds: [newEmbed],
+            embeds: [embed],
             components: [row],
           });
         } catch (editError: any) {
           if (editError.code === 40060 || editError.code === 10062) {
             clearInterval(updateInterval);
+            livePingService.stopPing(interaction.user.id, host);
             return;
           }
           throw editError;
         }
-
-        if (results.completed) {
-          clearInterval(updateInterval);
-          const finalEmbed = createPingEmbed(host, results.nodes, true, requestId);
-          finalEmbed.setFooter({ text: 'Test completed • Click Stop to end live updates' });
-          try {
-            await interaction.editReply({
-              embeds: [finalEmbed],
-              components: [row],
-            });
-          } catch {
-            // Ignore
-          }
-        }
       } catch (error: any) {
         if (error.code === 40060 || error.code === 10062) {
           clearInterval(updateInterval);
+          livePingService.stopPing(interaction.user.id, host);
           return;
         }
-        clearInterval(updateInterval);
-        try {
-          await interaction.editReply({
-            content: `❌ Failed to get ping results: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            components: [],
-          });
-        } catch {
-          // Ignore
-        }
+        logger.error('Error updating ping embed', error);
       }
-    }, 2000);
+    }, 1000);
+
+    const message = await interaction.editReply({
+      embeds: [createPingEmbed(host, null, true)],
+      components: [row],
+    });
 
     const collector = message.createMessageComponentCollector({
       componentType: ComponentType.Button,
-      time: 300000,
+      time: 600000,
     });
 
     collector.on('collect', async (buttonInteraction) => {
@@ -244,20 +208,26 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         stopped = true;
         clearInterval(updateInterval);
         collector.stop();
+        livePingService.stopPing(interaction.user.id, host);
+
+        const finalStats = livePingService.getStats(interaction.user.id, host);
+        const finalEmbed = createPingEmbed(host, finalStats, false);
+        finalEmbed.setFooter({ text: 'Ping stopped by user' });
 
         try {
-          const finalResults = await checkHostService.getPingResults(requestId);
-          const finalEmbed = createPingEmbed(host, finalResults.nodes, finalResults.completed, requestId);
-          finalEmbed.setFooter({ text: 'Live updates stopped' });
-
           await buttonInteraction.update({
             embeds: [finalEmbed],
             components: [],
           });
         } catch {
-          await buttonInteraction.update({
-            components: [],
-          });
+          try {
+            await interaction.editReply({
+              embeds: [finalEmbed],
+              components: [],
+            });
+          } catch {
+            // Ignore
+          }
         }
       }
     });
@@ -265,21 +235,22 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     collector.on('end', async () => {
       stopped = true;
       clearInterval(updateInterval);
+      livePingService.stopPing(interaction.user.id, host);
       try {
-        const finalResults = await checkHostService.getPingResults(requestId);
-        const finalEmbed = createPingEmbed(host, finalResults.nodes, finalResults.completed, requestId);
-        finalEmbed.setFooter({ text: 'Live updates expired' });
+        const finalStats = livePingService.getStats(interaction.user.id, host);
+        const finalEmbed = createPingEmbed(host, finalStats, false);
+        finalEmbed.setFooter({ text: 'Ping stopped - Interaction expired' });
         await interaction.editReply({
           embeds: [finalEmbed],
           components: [],
         });
       } catch {
+        // Ignore
       }
     });
   } catch (error: any) {
     await interaction.editReply({
-      content: `❌ Failed to start ping test: ${error.message}`,
+      content: `❌ Failed to start ping: ${error.message}`,
     });
   }
 }
-
