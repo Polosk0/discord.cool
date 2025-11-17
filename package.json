@@ -9,6 +9,7 @@
     "start": "node start.js",
     "start:direct": "tsx src/index.ts",
     "build": "tsc",
+    "deploy:commands": "tsx scripts/deploy-commands.ts",
     "test": "echo 'Add your test script here'"
   },
   "keywords": [
