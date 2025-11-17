@@ -1,6 +1,10 @@
 #!/bin/bash
 
-set -euo pipefail
+set -uo pipefail
+
+# Limites système pour protéger le serveur
+ulimit -u 4096
+ulimit -n 8192
 
 # Couleurs
 RED='\033[0;31m'
@@ -213,11 +217,10 @@ attack_h2() {
     while [ $(date +%s) -lt $end_time ]; do
         # Vérifier les ressources toutes les 10 requêtes
         if [ $((tid % 10)) -eq 0 ]; then
-            local resources=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{cpu=100-$1; mem=$(free | grep Mem | awk "{printf \"%.0f\", \$3/\$2 * 100.0}"); print cpu" "mem}')
-            local cpu=$(echo $resources | awk '{print $1}')
-            local mem=$(echo $resources | awk '{print $2}')
+            local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
+            local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
             
-            if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+            if [ "${cpu%.*}" -gt "$MAX_CPU" ] || [ "${mem%.*}" -gt "$MAX_MEM" ]; then
                 sleep 0.5
                 continue
             fi
@@ -304,7 +307,7 @@ attack_raw() {
             local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
             local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
             
-            if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+            if [ "${cpu%.*}" -gt "$MAX_CPU" ] || [ "${mem%.*}" -gt "$MAX_MEM" ]; then
                 sleep 0.3
                 continue
             fi
@@ -382,7 +385,7 @@ attack_get() {
             local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
             local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
             
-            if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+            if [ "${cpu%.*}" -gt "$MAX_CPU" ] || [ "${mem%.*}" -gt "$MAX_MEM" ]; then
                 sleep 0.2
                 continue
             fi
@@ -464,7 +467,7 @@ else
                 local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
                 local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
                 
-                if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+                if [ "${cpu%.*}" -gt "$MAX_CPU" ] || [ "${mem%.*}" -gt "$MAX_MEM" ]; then
                     sleep 0.5
                     continue
                 fi
@@ -608,7 +611,7 @@ attack_generic() {
             local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
             local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
             
-            if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+            if [ "${cpu%.*}" -gt "$MAX_CPU" ] || [ "${mem%.*}" -gt "$MAX_MEM" ]; then
                 sleep 0.3
                 continue
             fi
@@ -690,7 +693,7 @@ if command -v hping3 &> /dev/null; then
                 local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
                 local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
                 
-                if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+                if [ "${cpu%.*}" -gt "$MAX_CPU" ] || [ "${mem%.*}" -gt "$MAX_MEM" ]; then
                     sleep 0.5
                     continue
                 fi
