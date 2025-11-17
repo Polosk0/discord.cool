@@ -22,8 +22,16 @@ chmod +x scripts/*.sh
 nano .env
 # Remplir avec votre DISCORD_TOKEN, CLIENT_ID, ADMIN_IDS, etc.
 
-# 6. Démarrer le bot
-./scripts/start.sh
+# 6. Installer PM2 (recommandé pour production)
+npm install -g pm2
+
+# 7. Démarrer le bot avec PM2
+./scripts/pm2-start.sh
+
+# 8. Configurer le démarrage automatique
+pm2 save
+pm2 startup
+# Suivre les instructions affichées
 ```
 
 ## 🔄 Mises à Jour (Pull depuis GitHub)
@@ -69,6 +77,27 @@ pnpm install
 ```
 
 ## 📊 Commandes Utiles sur le VPS
+
+### Avec PM2 (Recommandé)
+
+```bash
+# Voir les logs en temps réel
+pm2 logs discord-bot
+
+# Monitorer (CPU, RAM, logs)
+pm2 monit
+
+# Voir le statut
+pm2 status
+
+# Redémarrer
+pm2 restart discord-bot
+
+# Arrêter
+./scripts/pm2-stop.sh
+```
+
+### Sans PM2
 
 ```bash
 # Voir les logs en temps réel

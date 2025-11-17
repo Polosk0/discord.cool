@@ -64,8 +64,12 @@ if [ -f .env ]; then
     print_success ".env backed up to $BACKUP_DIR/.env.backup.$TIMESTAMP"
 fi
 
-# Stop bot if running
-if [ -f bot.pid ]; then
+# Stop bot if running (check PM2 first, then PID file)
+if command -v pm2 &> /dev/null && pm2 list | grep -q "discord-bot"; then
+    print_info "Stopping bot (PM2)..."
+    pm2 stop discord-bot
+    print_success "Bot stopped (PM2)"
+elif [ -f bot.pid ]; then
     PID=$(cat bot.pid)
     if ps -p $PID > /dev/null 2>&1; then
         print_info "Stopping bot..."
@@ -147,6 +151,23 @@ fi
 
 print_header "Deployment Complete"
 print_success "Bot is ready to start"
-print_info "To start the bot: ./scripts/start.sh"
-print_info "To view logs: tail -f logs/bot.log"
+
+# Restart with PM2 if available, otherwise use start script
+if command -v pm2 &> /dev/null; then
+    print_info "Restarting bot with PM2..."
+    if pm2 list | grep -q "discord-bot"; then
+        pm2 restart discord-bot
+        print_success "Bot restarted with PM2"
+        print_info "To view logs: pm2 logs discord-bot"
+    else
+        print_info "Starting bot with PM2..."
+        pm2 start ecosystem.config.js
+        print_success "Bot started with PM2"
+        print_info "To view logs: pm2 logs discord-bot"
+    fi
+else
+    print_info "PM2 not found. Use: ./scripts/start.sh"
+    print_info "To view logs: tail -f logs/bot.log"
+    print_info "Or install PM2: npm install -g pm2"
+fi
 
