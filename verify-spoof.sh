@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euo pipefail
+set -uo pipefail
 
 echo "=== Vérification de l'installation spoof ==="
 echo ""
@@ -83,7 +83,23 @@ check_command "nginx" "Nginx"
 echo ""
 
 echo "[2/10] Vérification des processus..."
-check_process "gost -c /etc/gost/gost.conf" "Gost"
+if ! check_process "gost -c /etc/gost/gost.conf" "Gost"; then
+    echo "  → Tentative de démarrage de Gost..."
+    if [ -f "/etc/gost/gost.conf" ] && command -v gost &> /dev/null; then
+        pkill -f "gost -c /etc/gost/gost.conf" 2>/dev/null || true
+        nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &
+        sleep 2
+        if pgrep -f "gost -c /etc/gost/gost.conf" > /dev/null; then
+            echo "  ✓ Gost démarré avec succès"
+            ((WARNINGS--))
+        else
+            echo "  ✗ Échec du démarrage de Gost"
+            echo "  → Vérifiez les logs: tail /var/log/gost.log"
+        fi
+    else
+        echo "  → Gost non configuré ou non installé"
+    fi
+fi
 check_process "tor" "Tor"
 echo ""
 
