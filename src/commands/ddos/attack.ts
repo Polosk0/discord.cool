@@ -5,7 +5,6 @@ import {
   StringSelectMenuBuilder,
   ActionRowBuilder,
 } from 'discord.js';
-import { isValidIp, isValidDomain } from '../../utils/validators';
 import { rateLimiter } from '../../utils/rate-limiter';
 import { licenseService } from '../../services/license';
 

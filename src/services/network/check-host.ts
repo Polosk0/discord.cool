@@ -32,7 +32,7 @@ export class CheckHostService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as { request_id?: string };
       
       if (!data.request_id) {
         throw new Error('No request_id in response');
@@ -61,7 +61,7 @@ export class CheckHostService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as Record<string, any>;
       
       if (!data[requestId]) {
         return {
@@ -72,7 +72,7 @@ export class CheckHostService {
       }
 
       const nodes: CheckHostNode[] = [];
-      const results = data[requestId];
+      const results = data[requestId] as Record<string, any>;
 
       for (const [nodeId, nodeData] of Object.entries(results as any)) {
         if (Array.isArray(nodeData) && nodeData.length > 0) {

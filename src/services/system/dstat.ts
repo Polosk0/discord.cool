@@ -4,7 +4,6 @@ import { execSync } from 'child_process';
 
 export class DstatService {
   private statsHistory: SystemStats[] = [];
-  private lastCpuUsage = 0;
   private lastCpuTime = { idle: 0, total: 0 };
 
   getStats(): SystemStats {
