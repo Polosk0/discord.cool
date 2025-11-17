@@ -88,7 +88,7 @@ GOST_RUNNING=false
 GOST_PM2=false
 
 # Vérifier si Gost tourne directement
-if pgrep -f "gost.*-c.*gost.conf" > /dev/null || pgrep -f "gost-wrapper.sh" > /dev/null; then
+if pgrep -f "gost.*-C.*gost.conf" > /dev/null || pgrep -f "gost-wrapper.sh" > /dev/null; then
     GOST_RUNNING=true
 fi
 
@@ -111,7 +111,7 @@ if [ "$GOST_RUNNING" = true ]; then
 else
     echo "⚠ Gost: NON DÉMARRÉ"
     echo "  → Pour démarrer avec PM2: ./start-spoof-services.sh"
-    echo "  → Ou manuellement: nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &"
+    echo "  → Ou manuellement: nohup gost -C /etc/gost/gost.conf > /var/log/gost.log 2>&1 &"
     ((WARNINGS++))
 fi
 check_process "tor" "Tor"
@@ -180,7 +180,7 @@ GOST_RUNNING=false
 GOST_PM2=false
 
 # Vérifier si Gost tourne directement
-if pgrep -f "gost.*-c.*gost.conf" > /dev/null || pgrep -f "gost-wrapper.sh" > /dev/null; then
+if pgrep -f "gost.*-C.*gost.conf" > /dev/null || pgrep -f "gost-wrapper.sh" > /dev/null; then
     GOST_RUNNING=true
 fi
 
@@ -213,7 +213,7 @@ if [ "$GOST_RUNNING" = true ]; then
 else
     echo "⚠ Gost: NON DÉMARRÉ"
     echo "  → Pour démarrer avec PM2: ./start-spoof-services.sh"
-    echo "  → Ou manuellement: nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &"
+    echo "  → Ou manuellement: nohup gost -C /etc/gost/gost.conf > /var/log/gost.log 2>&1 &"
     ((WARNINGS++))
 fi
 echo ""

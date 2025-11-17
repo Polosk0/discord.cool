@@ -116,8 +116,8 @@ EOF
 
 # Démarrage de Gost (en arrière-plan)
 if command -v gost &> /dev/null; then
-    pkill -f "gost -c /etc/gost/gost.conf" || true
-    nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &
+    pkill -f "gost.*-C.*gost.conf" || true
+    nohup gost -C /etc/gost/gost.conf > /var/log/gost.log 2>&1 &
     echo "Gost démarré en arrière-plan"
 else
     echo "Attention: gost n'est pas installé, le démarrage sera ignoré"
@@ -278,14 +278,14 @@ if command -v node &> /dev/null; then
     else
         echo "⚠ npm non disponible, démarrage manuel de Gost..."
         if command -v gost &> /dev/null && [ -f "/etc/gost/gost.conf" ]; then
-            nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &
+            nohup gost -C /etc/gost/gost.conf > /var/log/gost.log 2>&1 &
             echo "✓ Gost démarré manuellement"
         fi
     fi
 else
     echo "⚠ nodejs non disponible, démarrage manuel de Gost..."
     if command -v gost &> /dev/null && [ -f "/etc/gost/gost.conf" ]; then
-        nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &
+        nohup gost -C /etc/gost/gost.conf > /var/log/gost.log 2>&1 &
         echo "✓ Gost démarré manuellement"
     fi
 fi

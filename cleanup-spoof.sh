@@ -12,7 +12,7 @@ if command -v pm2 &> /dev/null; then
     pm2 kill 2>/dev/null || true
     echo "✓ Services PM2 arrêtés"
 fi
-pkill -f "gost -c /etc/gost/gost.conf" 2>/dev/null || true
+pkill -f "gost.*-C.*gost.conf" 2>/dev/null || true
 systemctl stop tor 2>/dev/null || true
 echo "✓ Processus arrêtés"
 echo ""

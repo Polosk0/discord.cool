@@ -31,7 +31,7 @@ if [ -f "/etc/gost/gost.conf" ] && command -v gost &> /dev/null; then
     cat <<'GOSTWRAPPER' > /tmp/gost-wrapper.sh
 #!/bin/bash
 cd /
-exec gost -c /etc/gost/gost.conf -L /var/log/gost.log 2>&1
+exec gost -C /etc/gost/gost.conf -L /var/log/gost.log 2>&1
 GOSTWRAPPER
     chmod +x /tmp/gost-wrapper.sh
     # Démarrer avec PM2 et rediriger les erreurs
