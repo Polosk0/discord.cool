@@ -172,6 +172,9 @@ fi
 print_header "Deployment Complete"
 print_success "Bot is ready to start"
 
+# Make sure start.sh is executable
+chmod +x start.sh 2>/dev/null || true
+
 # Restart with PM2 if available, otherwise use start script
 if command -v pm2 &> /dev/null; then
     print_info "Restarting bot with PM2..."
@@ -182,8 +185,13 @@ if command -v pm2 &> /dev/null; then
     else
         print_info "Starting bot with PM2..."
         pm2 start ecosystem.config.js
-        print_success "Bot started with PM2"
-        print_info "To view logs: pm2 logs discord-bot"
+        if [ $? -eq 0 ]; then
+            print_success "Bot started with PM2"
+            print_info "To view logs: pm2 logs discord-bot"
+        else
+            print_error "Failed to start with PM2. Check logs above."
+            print_info "Try manually: pm2 start ecosystem.config.js"
+        fi
     fi
 else
     print_info "PM2 not found. Use: ./scripts/start.sh"

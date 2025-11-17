@@ -73,6 +73,9 @@ if pm2 list | grep -q "discord-bot"; then
     exit 1
 fi
 
+# Make sure start.sh is executable
+chmod +x start.sh 2>/dev/null || true
+
 # Start with PM2
 print_info "Starting bot with PM2..."
 pm2 start ecosystem.config.js
