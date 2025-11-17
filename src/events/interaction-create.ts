@@ -1,4 +1,4 @@
-import { Events, Interaction, ModalSubmitInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { Events, Interaction, ModalSubmitInteraction, StringSelectMenuInteraction, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
 import { commands } from '../commands';
 import { logger } from '../utils/logger';
 import { licenseService } from '../services/license';
@@ -199,8 +199,6 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction): Pro
 
     const method = interaction.values[0];
 
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import('discord.js');
-
     const modal = new ModalBuilder()
       .setCustomId(`attack_config_${method}`)
       .setTitle(`Configure ${method} Attack`);
@@ -238,10 +236,10 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction): Pro
       .setRequired(false)
       .setMaxLength(5);
 
-    const targetRow = new ActionRowBuilder().addComponents(targetInput);
-    const durationRow = new ActionRowBuilder().addComponents(durationInput);
-    const threadsRow = new ActionRowBuilder().addComponents(threadsInput);
-    const portRow = new ActionRowBuilder().addComponents(portInput);
+    const targetRow = new ActionRowBuilder<TextInputBuilder>().addComponents(targetInput);
+    const durationRow = new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput);
+    const threadsRow = new ActionRowBuilder<TextInputBuilder>().addComponents(threadsInput);
+    const portRow = new ActionRowBuilder<TextInputBuilder>().addComponents(portInput);
 
     modal.addComponents(targetRow, durationRow, threadsRow, portRow);
 
