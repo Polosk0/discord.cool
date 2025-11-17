@@ -16,14 +16,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!isAdmin(interaction.user.id)) {
     await interaction.reply({
       content: '❌ You do not have permission to use this command.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   const user = interaction.options.getUser('user', true);
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const revoked = licenseService.revokeLicense(user.id);
 

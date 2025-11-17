@@ -49,7 +49,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!rateLimiter.isAllowed(interaction.user.id, 'port-scan', 3, 60000)) {
     await interaction.reply({
       content: '❌ Rate limit exceeded. Please wait before using this command again.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -63,7 +63,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!isValidIp(host) && !isValidDomain(host)) {
     await interaction.reply({
       content: '❌ Invalid host. Please provide a valid IP address or domain.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -71,7 +71,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (type === 'single' && (!port || !isValidPort(port))) {
     await interaction.reply({
       content: '❌ Invalid port number for single port scan.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -79,7 +79,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (type === 'range' && (!startPort || !endPort || !isValidPort(startPort) || !isValidPort(endPort) || startPort > endPort)) {
     await interaction.reply({
       content: '❌ Invalid port range. Please provide valid start and end ports.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }

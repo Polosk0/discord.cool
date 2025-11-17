@@ -41,7 +41,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!licenseService.hasPermission(interaction.user.id, 'attack')) {
     await interaction.reply({
       content: '❌ You need a valid license with attack permission to use this command. Use `/license-activate` to activate your license.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -49,7 +49,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!rateLimiter.isAllowed(interaction.user.id, 'attack', 5, 60000)) {
     await interaction.reply({
       content: '❌ Rate limit exceeded. Please wait before launching another attack.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -73,7 +73,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.reply({
     embeds: [embed],
     components: [selectMenu],
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 }
 

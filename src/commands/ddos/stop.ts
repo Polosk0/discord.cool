@@ -12,7 +12,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!isAdmin(interaction.user.id) && !licenseService.hasPermission(interaction.user.id, 'attack')) {
     await interaction.reply({
       content: '❌ You do not have permission to use this command.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }

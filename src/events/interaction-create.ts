@@ -12,6 +12,10 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
   const customId = interaction.customId;
 
   if (customId.startsWith('license_create_')) {
+    if (interaction.replied || interaction.deferred) {
+      return;
+    }
+
     const userId = customId.replace('license_create_', '');
     const days = parseInt(interaction.fields.getTextInputValue('days') || '0', 10);
     const permissions = interaction.fields.getTextInputValue('permissions')?.split(',').map((p) => p.trim()) || ['bot', 'attack'];
@@ -30,37 +34,57 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
       )
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    try {
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    } catch (error) {
+      logger.error('Failed to reply to license_create modal', error as Error);
+    }
     return;
   }
 
   if (customId.startsWith('license_activate_')) {
+    if (interaction.replied || interaction.deferred) {
+      return;
+    }
+
     const licenseKey = interaction.fields.getTextInputValue('license_key')?.trim().toUpperCase();
 
     if (!licenseKey) {
-      await interaction.reply({
-        content: '❌ Please enter a license key.',
-        flags: MessageFlags.Ephemeral,
-      });
+      try {
+        await interaction.reply({
+          content: '❌ Please enter a license key.',
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch (error) {
+        logger.error('Failed to reply to license_activate modal', error as Error);
+      }
       return;
     }
 
     const validation = licenseService.validateLicenseKey(licenseKey);
     if (!validation.valid || !validation.license) {
-      await interaction.reply({
-        content: '❌ Invalid or expired license key.',
-        flags: MessageFlags.Ephemeral,
-      });
+      try {
+        await interaction.reply({
+          content: '❌ Invalid or expired license key.',
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch (error) {
+        logger.error('Failed to reply to license_activate modal', error as Error);
+      }
       return;
     }
 
     const license = validation.license;
 
     if (license.userId && license.userId !== interaction.user.id) {
-      await interaction.reply({
-        content: '❌ This license key belongs to another user.',
-        flags: MessageFlags.Ephemeral,
-      });
+      try {
+        await interaction.reply({
+          content: '❌ This license key belongs to another user.',
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch (error) {
+        logger.error('Failed to reply to license_activate modal', error as Error);
+      }
       return;
     }
 
@@ -73,13 +97,21 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
           .setDescription('This license is already activated on your account.')
           .setTimestamp();
 
-        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        try {
+          await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        } catch (error) {
+          logger.error('Failed to reply to license_activate modal', error as Error);
+        }
         return;
       } else {
-        await interaction.reply({
-          content: '❌ You already have an active license. Contact an admin to change it.',
-          flags: MessageFlags.Ephemeral,
-        });
+        try {
+          await interaction.reply({
+            content: '❌ You already have an active license. Contact an admin to change it.',
+            flags: MessageFlags.Ephemeral,
+          });
+        } catch (error) {
+          logger.error('Failed to reply to license_activate modal', error as Error);
+        }
         return;
       }
     }
@@ -96,7 +128,11 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
         )
         .setTimestamp();
 
-      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+      try {
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+      } catch (error) {
+        logger.error('Failed to reply to license_activate modal', error as Error);
+      }
       return;
     }
 
@@ -114,7 +150,11 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
       )
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    try {
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    } catch (error) {
+      logger.error('Failed to reply to license_activate modal', error as Error);
+    }
     return;
   }
 

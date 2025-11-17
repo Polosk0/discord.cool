@@ -15,7 +15,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!isAdmin(interaction.user.id)) {
     await interaction.reply({
       content: '❌ You do not have permission to use this command.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }

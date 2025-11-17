@@ -107,7 +107,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!licenseService.hasPermission(interaction.user.id, 'bot')) {
     await interaction.reply({
       content: '❌ You need a valid license to use this command. Use `/license-activate` to activate your license.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -115,7 +115,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!rateLimiter.isAllowed(interaction.user.id, 'methods', 10, 60000)) {
     await interaction.reply({
       content: '❌ Rate limit exceeded. Please wait before using this command again.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -141,7 +141,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const response = await interaction.reply({
     embeds: [embed],
     components: [selectMenu],
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 
   const collector = response.createMessageComponentCollector({
@@ -153,7 +153,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (selectInteraction.user.id !== interaction.user.id) {
       await selectInteraction.reply({
         content: '❌ This menu is not for you!',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }

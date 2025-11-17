@@ -22,7 +22,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!rateLimiter.isAllowed(interaction.user.id, 'dns-lookup', 10, 60000)) {
     await interaction.reply({
       content: '❌ Rate limit exceeded. Please wait before using this command again.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -33,7 +33,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!isValidIp(hostname) && !isValidDomain(hostname)) {
     await interaction.reply({
       content: '❌ Invalid hostname or IP address.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }

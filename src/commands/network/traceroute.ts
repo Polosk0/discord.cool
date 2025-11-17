@@ -24,7 +24,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!rateLimiter.isAllowed(interaction.user.id, 'traceroute', 5, 60000)) {
     await interaction.reply({
       content: '❌ Rate limit exceeded. Please wait before using this command again.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -35,7 +35,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!isValidIp(host) && !isValidDomain(host)) {
     await interaction.reply({
       content: '❌ Invalid host. Please provide a valid IP address or domain.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
