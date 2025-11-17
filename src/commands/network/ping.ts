@@ -30,10 +30,10 @@ function createPingEmbed(host: string, stats: any, isRunning: boolean): EmbedBui
     .setTimestamp();
 
   if (!stats || stats.packetsSent === 0) {
-    embed.setDescription('🔄 Starting ping...')
+    embed.setDescription('🔄 **Starting ping test...**\n\nPlease wait while we initialize the connection.')
       .addFields({
         name: '⏳ Status',
-        value: 'Initializing ping test...',
+        value: '```\nInitializing...\n```',
         inline: false,
       });
     return embed;
@@ -41,34 +41,32 @@ function createPingEmbed(host: string, stats: any, isRunning: boolean): EmbedBui
 
   const packetLossColor = stats.packetLoss === 0 ? '🟢' : stats.packetLoss < 10 ? '🟡' : '🔴';
   const latencyColor = stats.avgLatency < 50 ? '🟢' : stats.avgLatency < 100 ? '🟡' : '🔴';
-
   const statusEmoji = isRunning ? '🟢' : '🔴';
   const statusText = isRunning ? 'Running' : 'Stopped';
 
-  embed.setDescription(`${statusEmoji} **${statusText}** - Live ping in progress`)
+  const packetLossBar = createProgressBar(100 - stats.packetLoss, 100, 15);
+  const latencyBar = createProgressBar(Math.min(200, stats.avgLatency), 200, 15);
+
+  embed.setDescription(`${statusEmoji} **${statusText}** - Live ping in progress\n\n\`\`\`\nPinging ${host}...\n\`\`\``)
     .addFields(
       {
-        name: '📊 Statistics',
-        value: `**Packets:** ${stats.packetsReceived}/${stats.packetsSent}\n**Loss:** ${packetLossColor} ${stats.packetLoss.toFixed(1)}%\n**Status:** ${statusText}`,
-        inline: true,
+        name: '📊 Packet Statistics',
+        value: `\`\`\`\nSent:     ${stats.packetsSent}\nReceived: ${stats.packetsReceived}\nLost:     ${stats.packetsSent - stats.packetsReceived}\n\`\`\`\n**Loss:** ${packetLossColor} \`${packetLossBar}\` ${stats.packetLoss.toFixed(1)}%`,
+        inline: false,
       },
       {
-        name: '⚡ Latency',
-        value: `**Current:** ${stats.currentLatency ? `${stats.currentLatency.toFixed(0)}ms` : 'N/A'}\n**Min:** ${stats.minLatency !== Infinity ? `${stats.minLatency.toFixed(0)}ms` : 'N/A'}\n**Max:** ${stats.maxLatency > 0 ? `${stats.maxLatency.toFixed(0)}ms` : 'N/A'}`,
-        inline: true,
-      },
-      {
-        name: '📈 Average',
-        value: `${latencyColor} **${stats.avgLatency > 0 ? stats.avgLatency.toFixed(2) : '0.00'}ms**`,
-        inline: true,
+        name: '⚡ Latency (ms)',
+        value: `\`\`\`\nCurrent:  ${stats.currentLatency ? `${stats.currentLatency.toFixed(0).padStart(6)}ms` : '   N/A'}\nMinimum:  ${stats.minLatency !== Infinity ? `${stats.minLatency.toFixed(0).padStart(6)}ms` : '   N/A'}\nMaximum:  ${stats.maxLatency > 0 ? `${stats.maxLatency.toFixed(0).padStart(6)}ms` : '   N/A'}\nAverage:  ${stats.avgLatency > 0 ? `${stats.avgLatency.toFixed(2).padStart(6)}ms` : '  0.00ms'}\n\`\`\`\n**Avg:** ${latencyColor} \`${latencyBar}\` ${stats.avgLatency > 0 ? stats.avgLatency.toFixed(2) : '0.00'}ms`,
+        inline: false,
       }
     );
 
   if (stats.packetsReceived > 0) {
     const successRate = ((stats.packetsReceived / stats.packetsSent) * 100).toFixed(1);
+    const successBar = createProgressBar(parseFloat(successRate), 100, 20);
     embed.addFields({
       name: '✅ Success Rate',
-      value: `${successRate}%`,
+      value: `\`${successBar}\` **${successRate}%**`,
       inline: true,
     });
   }
@@ -78,7 +76,7 @@ function createPingEmbed(host: string, stats: any, isRunning: boolean): EmbedBui
   const secondsAgo = Math.floor((now.getTime() - lastUpdate.getTime()) / 1000);
 
   embed.setFooter({ 
-    text: `Last update: ${secondsAgo}s ago • Click Stop to end ping` 
+    text: `🔄 Updated ${secondsAgo}s ago • Click Stop to end ping` 
   });
 
   return embed;
