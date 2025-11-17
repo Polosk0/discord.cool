@@ -546,7 +546,7 @@ hold_connection() {
         local cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}')
         local mem=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
         
-        if (( $(echo "$cpu > $MAX_CPU" | bc -l) )) || (( $(echo "$mem > $MAX_MEM" | bc -l) )); then
+        if [ "${cpu%.*}" -gt "$MAX_CPU" ] || [ "${mem%.*}" -gt "$MAX_MEM" ]; then
             sleep 2
             continue
         fi
