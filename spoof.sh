@@ -20,7 +20,7 @@ apt install -y tor
 # Configuration de Tor
 mkdir -p /etc/tor
 cat <<EOF > /etc/tor/torrc
-SocksPort 0
+SocksPort 127.0.0.1:9050
 ControlPort 9051
 CookieAuthentication 1
 EOF

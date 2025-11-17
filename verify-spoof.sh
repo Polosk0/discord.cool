@@ -157,20 +157,43 @@ echo ""
 echo "[7/10] Test de connexion Tor..."
 if systemctl is-active --quiet tor; then
     echo "✓ Service Tor: ACTIF"
-    if timeout 5 proxychains4 curl -s https://ifconfig.me > /dev/null 2>&1; then
-        IP=$(timeout 5 proxychains4 curl -s https://ifconfig.me 2>/dev/null || echo "timeout")
-        if [ "$IP" != "timeout" ] && [ -n "$IP" ]; then
-            echo "  → IP via ProxyChains/Tor: $IP"
+    # Vérifier que le port SOCKS de Tor est ouvert
+    if netstat -tuln 2>/dev/null | grep -q ":9050" || ss -tuln 2>/dev/null | grep -q ":9050"; then
+        echo "  → Port SOCKS Tor (9050): OUVERT"
+    else
+        echo "  ⚠ Port SOCKS Tor (9050): FERMÉ ou non configuré"
+        echo "  → Vérifiez la configuration Tor: cat /etc/tor/torrc"
+        ((WARNINGS++))
+    fi
+    # Vérifier la configuration ProxyChains
+    if [ -f "/etc/proxychains.conf" ]; then
+        if grep -q "127.0.0.1.*9050\|127.0.0.1.*9051" /etc/proxychains.conf; then
+            echo "  → ProxyChains configuré pour utiliser Tor"
+            # Test simple avec timeout plus long
+            if timeout 10 proxychains4 curl -s --max-time 5 https://ifconfig.me > /dev/null 2>&1; then
+                IP=$(timeout 10 proxychains4 curl -s --max-time 5 https://ifconfig.me 2>/dev/null || echo "")
+                if [ -n "$IP" ] && [ "$IP" != "" ]; then
+                    echo "  → IP via ProxyChains/Tor: $IP"
+                else
+                    echo "  ⚠ ProxyChains fonctionne mais n'a pas pu récupérer l'IP (peut être normal)"
+                    ((WARNINGS++))
+                fi
+            else
+                echo "  ⚠ ProxyChains ne répond pas (Tor peut être en cours d'initialisation)"
+                echo "  → Attendez quelques secondes et réessayez: proxychains4 curl https://ifconfig.me"
+                ((WARNINGS++))
+            fi
         else
-            echo "  ⚠ Impossible de récupérer l'IP via ProxyChains"
+            echo "  ⚠ ProxyChains non configuré pour Tor"
             ((WARNINGS++))
         fi
     else
-        echo "  ⚠ ProxyChains ne répond pas correctement"
+        echo "  ⚠ Fichier /etc/proxychains.conf non trouvé"
         ((WARNINGS++))
     fi
 else
     echo "⚠ Service Tor: INACTIF"
+    echo "  → Démarrez Tor: systemctl start tor"
     ((WARNINGS++))
 fi
 echo ""
