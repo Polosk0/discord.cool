@@ -237,12 +237,6 @@ function createSelectMenu(): ActionRowBuilder<StringSelectMenuBuilder> {
           description: 'Help and utility commands',
           value: '🛠️ Utility',
           emoji: '🛠️',
-        },
-        {
-          label: 'Admin Commands',
-          description: 'License management',
-          value: '👑 Admin',
-          emoji: '👑',
         }
       )
   );
@@ -255,7 +249,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const response = await interaction.reply({
     embeds: [embed],
     components: [selectMenu],
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 
   const collector = response.createMessageComponentCollector({
@@ -267,7 +261,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (selectInteraction.user.id !== interaction.user.id) {
       await selectInteraction.reply({
         content: '❌ This menu is not for you!',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }

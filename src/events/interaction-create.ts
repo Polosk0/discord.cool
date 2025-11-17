@@ -1,4 +1,4 @@
-import { Events, Interaction, ModalSubmitInteraction, StringSelectMenuInteraction, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
+import { Events, Interaction, ModalSubmitInteraction, StringSelectMenuInteraction, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
 import { commands } from '../commands';
 import { logger } from '../utils/logger';
 import { licenseService } from '../services/license';
@@ -30,7 +30,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
       )
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -40,7 +40,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
     if (!licenseKey) {
       await interaction.reply({
         content: '❌ Please enter a license key.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -49,7 +49,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
     if (!validation.valid || !validation.license) {
       await interaction.reply({
         content: '❌ Invalid or expired license key.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -59,7 +59,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
     if (license.userId && license.userId !== interaction.user.id) {
       await interaction.reply({
         content: '❌ This license key belongs to another user.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -73,12 +73,12 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
           .setDescription('This license is already activated on your account.')
           .setTimestamp();
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
       } else {
         await interaction.reply({
           content: '❌ You already have an active license. Contact an admin to change it.',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -96,7 +96,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
         )
         .setTimestamp();
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -114,7 +114,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
       )
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -128,7 +128,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
     if (!target || (!isValidUrl(target) && !isValidIp(target) && !isValidDomain(target))) {
       await interaction.reply({
         content: '❌ Invalid target. Please provide a valid URL, IP address, or domain.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -136,7 +136,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
     if (!isValidDuration(duration)) {
       await interaction.reply({
         content: '❌ Invalid duration. Maximum allowed: 300 seconds.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -144,12 +144,12 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
     if (!isValidThreads(threads)) {
       await interaction.reply({
         content: '❌ Invalid thread count. Maximum allowed: 100.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
       const config = {
@@ -192,7 +192,7 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction): Pro
     if (!licenseService.hasPermission(interaction.user.id, 'attack')) {
       await interaction.reply({
         content: '❌ You need a valid license with attack permission.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -257,7 +257,7 @@ export async function execute(interaction: Interaction): Promise<void> {
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
           content: '❌ An error occurred while processing your request.',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
     }
@@ -272,7 +272,7 @@ export async function execute(interaction: Interaction): Promise<void> {
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
           content: '❌ An error occurred while processing your selection.',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
     }
@@ -295,13 +295,21 @@ export async function execute(interaction: Interaction): Promise<void> {
 
     const reply = {
       content: '❌ An error occurred while executing this command.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     };
 
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(reply);
+      try {
+        await interaction.followUp(reply);
+      } catch (error) {
+        logger.error('Failed to send error follow-up', error as Error);
+      }
     } else {
-      await interaction.reply(reply);
+      try {
+        await interaction.reply(reply);
+      } catch (error) {
+        logger.error('Failed to send error reply', error as Error);
+      }
     }
   }
 }

@@ -4,6 +4,7 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
   ActionRowBuilder,
+  MessageFlags,
 } from 'discord.js';
 import { rateLimiter } from '../../utils/rate-limiter';
 import { licenseService } from '../../services/license';
