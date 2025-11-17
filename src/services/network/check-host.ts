@@ -23,30 +23,44 @@ export class CheckHostService {
       
       logger.info(`Starting ping check for ${host} with ${maxNodes} nodes`);
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        logger.error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json() as { request_id?: string };
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       
-      logger.debug(`API response:`, JSON.stringify(data));
-      
-      if (!data.request_id) {
-        logger.error('No request_id in response:', JSON.stringify(data));
-        throw new Error('No request_id in response');
-      }
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+          signal: controller.signal,
+        });
 
-      logger.info(`Started ping check for ${host}, request_id: ${data.request_id}`);
-      return data.request_id;
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          logger.error(`HTTP error! status: ${response.status}, body: ${errorText.substring(0, 200)}`);
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json() as { request_id?: string };
+        
+        logger.debug(`API response:`, JSON.stringify(data));
+        
+        if (!data.request_id) {
+          logger.error('No request_id in response:', JSON.stringify(data));
+          throw new Error('No request_id in response');
+        }
+
+        logger.info(`Started ping check for ${host}, request_id: ${data.request_id}`);
+        return data.request_id;
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Request timeout - check-host.net API is not responding');
+        }
+        throw fetchError;
+      }
     } catch (error: any) {
       logger.error('Failed to start ping check', error);
       throw error;
