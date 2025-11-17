@@ -83,22 +83,24 @@ check_command "nginx" "Nginx"
 echo ""
 
 echo "[2/10] Vérification des processus..."
-if ! check_process "gost -c /etc/gost/gost.conf" "Gost"; then
-    echo "  → Tentative de démarrage de Gost..."
-    if [ -f "/etc/gost/gost.conf" ] && command -v gost &> /dev/null; then
-        pkill -f "gost -c /etc/gost/gost.conf" 2>/dev/null || true
-        nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &
-        sleep 2
-        if pgrep -f "gost -c /etc/gost/gost.conf" > /dev/null; then
-            echo "  ✓ Gost démarré avec succès"
-            ((WARNINGS--))
-        else
-            echo "  ✗ Échec du démarrage de Gost"
-            echo "  → Vérifiez les logs: tail /var/log/gost.log"
-        fi
-    else
-        echo "  → Gost non configuré ou non installé"
+# Vérifier Gost (peut tourner via PM2 ou directement)
+GOST_RUNNING=false
+if pgrep -f "gost -c /etc/gost/gost.conf" > /dev/null; then
+    GOST_RUNNING=true
+elif command -v pm2 &> /dev/null && pm2 list | grep -q "gost.*online" 2>/dev/null; then
+    GOST_RUNNING=true
+fi
+
+if [ "$GOST_RUNNING" = true ]; then
+    echo "✓ Gost: EN COURS D'EXÉCUTION"
+    if command -v pm2 &> /dev/null && pm2 list | grep -q "gost.*online" 2>/dev/null; then
+        echo "  → Gost géré par PM2"
     fi
+else
+    echo "⚠ Gost: NON DÉMARRÉ"
+    echo "  → Pour démarrer avec PM2: ./start-spoof-services.sh"
+    echo "  → Ou manuellement: nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &"
+    ((WARNINGS++))
 fi
 check_process "tor" "Tor"
 echo ""
@@ -162,8 +164,19 @@ fi
 echo ""
 
 echo "[8/10] Test de Gost..."
+GOST_RUNNING=false
 if pgrep -f "gost -c /etc/gost/gost.conf" > /dev/null; then
+    GOST_RUNNING=true
+elif command -v pm2 &> /dev/null && pm2 list | grep -q "gost.*online" 2>/dev/null; then
+    GOST_RUNNING=true
+fi
+
+if [ "$GOST_RUNNING" = true ]; then
     echo "✓ Gost: EN COURS D'EXÉCUTION"
+    if command -v pm2 &> /dev/null && pm2 list | grep -q "gost.*online" 2>/dev/null; then
+        echo "  → Gost géré par PM2"
+        echo "  → Voir les logs: pm2 logs gost"
+    fi
     if [ -f "/var/log/gost.log" ]; then
         echo "  → Logs disponibles: /var/log/gost.log"
         if tail -n 5 /var/log/gost.log 2>/dev/null | grep -q "error\|Error\|ERROR"; then
@@ -173,7 +186,8 @@ if pgrep -f "gost -c /etc/gost/gost.conf" > /dev/null; then
     fi
 else
     echo "⚠ Gost: NON DÉMARRÉ"
-    echo "  → Pour démarrer: nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &"
+    echo "  → Pour démarrer avec PM2: ./start-spoof-services.sh"
+    echo "  → Ou manuellement: nohup gost -c /etc/gost/gost.conf > /var/log/gost.log 2>&1 &"
     ((WARNINGS++))
 fi
 echo ""

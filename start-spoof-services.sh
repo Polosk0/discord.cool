@@ -27,7 +27,13 @@ pm2 delete tor-check 2>/dev/null || true
 # Démarrer Gost
 if [ -f "/etc/gost/gost.conf" ] && command -v gost &> /dev/null; then
     echo "Démarrage de Gost..."
-    pm2 start gost --name gost -- -c /etc/gost/gost.conf -L /var/log/gost.log
+    # Créer un script wrapper pour Gost
+    cat <<'GOSTWRAPPER' > /tmp/gost-wrapper.sh
+#!/bin/bash
+exec gost -c /etc/gost/gost.conf -L /var/log/gost.log
+GOSTWRAPPER
+    chmod +x /tmp/gost-wrapper.sh
+    pm2 start /tmp/gost-wrapper.sh --name gost
     echo "✓ Gost démarré avec PM2"
 else
     echo "⚠ Gost non configuré, ignoré"
@@ -66,7 +72,17 @@ echo "✓ Monitoring Tor démarré"
 pm2 save
 
 # Configurer PM2 pour démarrer au boot
-pm2 startup | grep -v "PM2" | bash || true
+echo "Configuration de PM2 pour le démarrage au boot..."
+STARTUP_CMD=$(pm2 startup systemd -u root --hp /root 2>/dev/null | grep -E "sudo|env" | tail -1)
+if [ -n "$STARTUP_CMD" ]; then
+    eval "$STARTUP_CMD" 2>/dev/null || {
+        echo "⚠ Impossible de configurer le démarrage automatique"
+        echo "  → Exécutez manuellement: pm2 startup"
+    }
+else
+    echo "⚠ Commande de démarrage non trouvée"
+    echo "  → Exécutez manuellement: pm2 startup"
+fi
 
 echo ""
 echo "=== Services démarrés ==="
