@@ -1,7 +1,7 @@
 const { resolve, join } = require('path');
 const { existsSync } = require('fs');
 
-const __dirname = __dirname || process.cwd();
+const __dirname = process.cwd();
 
 // Try multiple possible script paths
 let scriptPath = null;
@@ -11,16 +11,19 @@ let scriptArgs = [];
 const startJsPath = resolve(__dirname, 'start.js');
 if (existsSync(startJsPath)) {
   scriptPath = startJsPath;
+  console.log('Using start.js');
 } else {
   // Fallback to tsx directly
   const tsxPath = resolve(__dirname, 'node_modules', '.bin', 'tsx');
   if (existsSync(tsxPath)) {
     scriptPath = tsxPath;
     scriptArgs = [resolve(__dirname, 'src', 'index.ts')];
+    console.log('Using tsx directly');
   } else {
     // Last resort: use pnpm
     scriptPath = 'pnpm';
     scriptArgs = ['start'];
+    console.log('Using pnpm start');
   }
 }
 
@@ -29,7 +32,7 @@ module.exports = {
     {
       name: 'discord-bot',
       script: scriptPath,
-      args: scriptArgs.length > 0 ? scriptArgs.join(' ') : undefined,
+      args: scriptArgs.length > 0 ? scriptArgs : undefined,
       interpreter: scriptPath.endsWith('.js') ? 'node' : undefined,
       cwd: __dirname,
       instances: 1,
@@ -51,4 +54,3 @@ module.exports = {
     },
   ],
 };
-
