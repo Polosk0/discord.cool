@@ -5,6 +5,7 @@ import {
   StringSelectMenuBuilder,
   ActionRowBuilder,
   ComponentType,
+  MessageFlags,
 } from 'discord.js';
 import { licenseService } from '../../services/license';
 import { rateLimiter } from '../../utils/rate-limiter';

@@ -21,6 +21,8 @@ export class CheckHostService {
     try {
       const url = `${this.apiBase}/check-ping?host=${encodeURIComponent(host)}&max_nodes=${maxNodes}`;
       
+      logger.info(`Starting ping check for ${host} with ${maxNodes} nodes`);
+      
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -29,12 +31,17 @@ export class CheckHostService {
       });
 
       if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        logger.error(`HTTP error! status: ${response.status}, body: ${errorText}`);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json() as { request_id?: string };
       
+      logger.debug(`API response:`, JSON.stringify(data));
+      
       if (!data.request_id) {
+        logger.error('No request_id in response:', JSON.stringify(data));
         throw new Error('No request_id in response');
       }
 
@@ -58,12 +65,17 @@ export class CheckHostService {
       });
 
       if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        logger.error(`HTTP error getting results! status: ${response.status}, body: ${errorText}`);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json() as Record<string, any>;
       
+      logger.debug(`Results for ${requestId}:`, JSON.stringify(data).substring(0, 500));
+      
       if (!data[requestId]) {
+        logger.debug(`No data for request_id ${requestId} yet`);
         return {
           requestId,
           nodes: [],
@@ -74,24 +86,49 @@ export class CheckHostService {
       const nodes: CheckHostNode[] = [];
       const results = data[requestId] as Record<string, any>;
 
-      for (const [nodeId, nodeData] of Object.entries(results as any)) {
-        if (Array.isArray(nodeData) && nodeData.length > 0) {
-          const firstResult = nodeData[0];
-          
-          if (firstResult[0] === 'OK') {
-            nodes.push({
-              node: this.getNodeName(nodeId),
-              location: this.getNodeLocation(nodeId),
-              status: 'OK',
-              rtt: firstResult[1] ? parseFloat(firstResult[1]) : undefined,
-            });
-          } else if (firstResult[0] === 'ERROR') {
-            nodes.push({
-              node: this.getNodeName(nodeId),
-              location: this.getNodeLocation(nodeId),
-              status: 'ERROR',
-              error: firstResult[1] || 'Unknown error',
-            });
+      if (!results || typeof results !== 'object') {
+        logger.warn(`Invalid results format for ${requestId}:`, typeof results);
+        return {
+          requestId,
+          nodes: [],
+          completed: false,
+        };
+      }
+
+      for (const [nodeId, nodeData] of Object.entries(results)) {
+        try {
+          if (Array.isArray(nodeData) && nodeData.length > 0) {
+            const firstResult = nodeData[0];
+            
+            if (Array.isArray(firstResult)) {
+              if (firstResult[0] === 'OK') {
+                nodes.push({
+                  node: this.getNodeName(nodeId),
+                  location: this.getNodeLocation(nodeId),
+                  status: 'OK',
+                  rtt: firstResult[1] ? parseFloat(String(firstResult[1])) : undefined,
+                });
+              } else if (firstResult[0] === 'ERROR') {
+                nodes.push({
+                  node: this.getNodeName(nodeId),
+                  location: this.getNodeLocation(nodeId),
+                  status: 'ERROR',
+                  error: firstResult[1] ? String(firstResult[1]) : 'Unknown error',
+                });
+              } else {
+                nodes.push({
+                  node: this.getNodeName(nodeId),
+                  location: this.getNodeLocation(nodeId),
+                  status: 'PENDING',
+                });
+              }
+            } else {
+              nodes.push({
+                node: this.getNodeName(nodeId),
+                location: this.getNodeLocation(nodeId),
+                status: 'PENDING',
+              });
+            }
           } else {
             nodes.push({
               node: this.getNodeName(nodeId),
@@ -99,7 +136,8 @@ export class CheckHostService {
               status: 'PENDING',
             });
           }
-        } else {
+        } catch (nodeError) {
+          logger.warn(`Error processing node ${nodeId}:`, nodeError);
           nodes.push({
             node: this.getNodeName(nodeId),
             location: this.getNodeLocation(nodeId),
@@ -108,7 +146,9 @@ export class CheckHostService {
         }
       }
 
-      const completed = nodes.every((node) => node.status !== 'PENDING');
+      const completed = nodes.length > 0 && nodes.every((node) => node.status !== 'PENDING');
+
+      logger.debug(`Processed ${nodes.length} nodes, completed: ${completed}`);
 
       return {
         requestId,
