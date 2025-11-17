@@ -1,15 +1,10 @@
-import { resolve } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = fileURLToPath(new URL('.', import.meta.url)).replace(/\/$/, '');
-
 export default {
   apps: [
     {
       name: 'discord-bot',
-      script: resolve(__dirname, 'start.sh'),
+      script: './start.sh',
       interpreter: 'bash',
-      cwd: resolve(__dirname),
+      cwd: './',
       instances: 1,
       autorestart: true,
       watch: false,
