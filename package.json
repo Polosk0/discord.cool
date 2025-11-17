@@ -1,28 +1,40 @@
 {
   "name": "discord.cool",
   "version": "1.0.0",
-  "description": "Discord bot/script project",
+  "description": "Discord bot with network tools and DDoS capabilities",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "echo 'Add your dev script here'",
-    "build": "echo 'Add your build script here'",
-    "start": "echo 'Add your start script here'",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
     "test": "echo 'Add your test script here'"
   },
   "keywords": [
     "discord",
-    "bot"
+    "bot",
+    "network",
+    "ddos",
+    "tools"
   ],
   "author": "Polosk0",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Polosk0/discord.cool.git"
+    "url": "https://github.com/Polosk0/discord.cool.bot.git"
   },
   "engines": {
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
   }
 }
 
